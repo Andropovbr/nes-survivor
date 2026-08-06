@@ -1,0 +1,28 @@
+# Build products
+/build/
+*.o
+*.map
+*.lbl
+*.dbg
+*.lst
+
+# Generated cartridge and emulator state
+*.nes
+*.sav
+*.srm
+*.state
+*.mmo
+*.cdl
+*.bk2
+
+# Python test caches
+__pycache__/
+*.py[cod]
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
