@@ -1,2 +1,2 @@
 .segment "CHARS"
-.incbin "blank.chr"
+.incbin "game.chr"

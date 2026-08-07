@@ -38,7 +38,9 @@ def main() -> int:
     require(rom[5] == 1, "expected one 8 KiB CHR bank")
     require((rom[6] & 0xF1) == 0, "expected mapper 0, horizontal mirroring, no trainer")
     require((rom[7] & 0xF0) == 0, "expected mapper 0 upper nibble")
-    require(set(rom[-8192:]) == {0}, "blank CHR bank contains nonzero data")
+    chr_asset = Path(__file__).resolve().parent.parent / "assets" / "game.chr"
+    require(chr_asset.stat().st_size == 8192, "assets/game.chr is not 8 KiB")
+    require(rom[-8192:] == chr_asset.read_bytes(), "ROM CHR does not match assets/game.chr")
 
     vectors = rom[16 + 0x7FFA : 16 + 0x8000]
     require(len(vectors) == 6, "interrupt vector table is incomplete")

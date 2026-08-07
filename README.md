@@ -6,13 +6,14 @@ for hardware startup and bounded low-level work.
 
 ## Current status
 
-Milestone 1 provides a bootable NROM / Mapper 0 foundation. The ROM initializes
-the CPU, PPU and internal RAM, clears the nametables, selects a black universal
-background, keeps every sprite hidden, performs OAM DMA during NMI, reads
-controller 1, and advances an otherwise empty C game loop once per video frame.
+The ROM now boots into a fixed black arena with the first playable character
+centered on screen. The character moves in all eight D-pad directions, remembers
+the last horizontal facing direction, and uses the generated 6-frame idle and
+two 8-frame movement sequences. Animation durations, signed metasprite offsets,
+tile indexes and OAM attributes come from the consolidated png2chr-studio data.
 
-The expected display is a stable black screen. There is intentionally no player,
-gameplay, title screen, HUD, audio, animation or imported player CHR yet.
+The NROM foundation still performs bounded OAM DMA in NMI and runs controller,
+player, animation and OAM construction logic in the synchronized C main loop.
 
 ## Requirements
 
@@ -47,14 +48,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/build.ps1 runtime
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/build.ps1 clean
 ```
 
-The source-controlled blank CHR bank can be regenerated with
-`python tools/generate_blank_chr.py`.
+`assets/game.chr` is the source-controlled 8 KiB CHR-ROM bank used by the build.
 
 ## Controls
 
-Controller 1 is sampled every frame. A, B, Select, Start and the directional pad
-are exposed through the input API, but no button affects the game in this
-milestone.
+Controller 1 is sampled every frame. The D-pad moves one pixel per axis per game
+frame, including diagonals. Left and Right update horizontal facing; Up and Down
+alone preserve it. Releasing the D-pad returns to idle while preserving facing.
+A, B, Select and Start are sampled but have no gameplay action yet.
 
 ## Hardware target and limitations
 
@@ -63,8 +64,9 @@ milestone.
 - NTSC timing assumption (60 frames per second)
 - one fixed screen with scrolling held at zero
 - no audio and no PAL/Dendy timing adaptation yet
-- no visible content; `chr/player.chr` and `chr/player2.chr` remain external input
-  for a later milestone
+- one player character only; no combat, enemies, waves, HUD or collision yet
+- diagonals intentionally use the full one-pixel speed on both axes
+- no sprite-flicker rotation is needed yet; the player consumes 7 of 64 OAM slots
 
 Architecture and frame details are in [docs/architecture.md](docs/architecture.md).
 Measured memory usage is in [docs/memory-map.md](docs/memory-map.md).

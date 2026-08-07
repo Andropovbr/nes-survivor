@@ -13,7 +13,7 @@ CFLAGS := -t nes -Oirs --standard c99 --warnings-as-errors -I include
 AFLAGS := -t nes --warnings-as-errors -I include --bin-include-dir assets
 LDFLAGS := -C cfg/nrom.cfg --warnings-as-errors
 
-C_MODULES := main game input rng
+C_MODULES := main game input rng animation metasprite player player_animation_data
 ASM_MODULES := crt0 nmi nes chr
 C_ASM := $(addprefix $(BUILD_DIR)/c_,$(addsuffix .s,$(C_MODULES)))
 C_OBJECTS := $(addprefix $(BUILD_DIR)/c_,$(addsuffix .o,$(C_MODULES)))
@@ -41,13 +41,18 @@ $(BUILD_DIR)/c_%.o: $(BUILD_DIR)/c_%.s
 $(BUILD_DIR)/%.o: src/%.s | $(BUILD_DIR)
 	$(CA65) $(AFLAGS) -o $@ $<
 
-$(BUILD_DIR)/chr.o: assets/blank.chr
+$(BUILD_DIR)/chr.o: assets/game.chr
 
 $(ROM): $(OBJECTS) cfg/nrom.cfg
 	$(LD65) $(LDFLAGS) -m $(MAP) -Ln $(LABELS) -o $@ $(OBJECTS) nes.lib
 
-$(TEST_BIN): tests/test_logic.c src/input.c src/rng.c include/input.h include/rng.h include/nes.h include/tuning.h | $(BUILD_DIR)
-	$(CL65) -t sim6502 --standard c99 --warnings-as-errors -DUNIT_TEST -I include -o $@ tests/test_logic.c src/input.c src/rng.c
+TEST_SOURCES := tests/test_logic.c src/input.c src/rng.c src/animation.c \
+	src/metasprite.c src/player.c src/player_animation_data.c
+
+$(TEST_BIN): $(TEST_SOURCES) include/input.h include/rng.h include/nes.h \
+	include/tuning.h include/animation.h include/metasprite.h include/player.h \
+	include/player_animation_data.h | $(BUILD_DIR)
+	$(CL65) -t sim6502 --standard c99 --warnings-as-errors -DUNIT_TEST -I include -o $@ $(TEST_SOURCES)
 
 test: $(ROM) $(TEST_BIN)
 	$(SIM65) $(TEST_BIN)
