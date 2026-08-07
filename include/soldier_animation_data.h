@@ -1,0 +1,23 @@
+#ifndef SOLDIER_ANIMATION_DATA_H
+#define SOLDIER_ANIMATION_DATA_H
+
+#include <stdint.h>
+
+#include "animation.h"
+
+#define SOLDIER_ANIMATION_IDLE           0U
+#define SOLDIER_ANIMATION_MOVEMENT_RIGHT 1U
+#define SOLDIER_ANIMATION_MOVEMENT_LEFT  2U
+#define SOLDIER_ANIMATION_COUNT           3U
+
+#define SOLDIER_ANIMATION_TYPE_IDLE     UINT8_C(0)
+#define SOLDIER_ANIMATION_TYPE_MOVEMENT UINT8_C(1)
+#define SOLDIER_DIRECTION_NONE          UINT8_C(0x00)
+#define SOLDIER_DIRECTION_LEFT          UINT8_C(0x01)
+#define SOLDIER_DIRECTION_RIGHT         UINT8_C(0x02)
+#define SOLDIER_DIRECTION_MASK          UINT8_C(0x03)
+#define SOLDIER_GENERATED_H_FLIP        UINT8_C(0x80)
+
+extern const AnimationData soldier_animation_data;
+
+#endif

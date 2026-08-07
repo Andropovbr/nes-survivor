@@ -6,14 +6,17 @@ for hardware startup and bounded low-level work.
 
 ## Current status
 
-The ROM now boots into a fixed black arena with the first playable character
-centered on screen. The character moves in all eight D-pad directions, remembers
-the last horizontal facing direction, and uses the generated 6-frame idle and
-two 8-frame movement sequences. Animation durations, signed metasprite offsets,
-tile indexes and OAM attributes come from the consolidated png2chr-studio data.
+The ROM now boots into a fixed black arena with Soldier, the first playable
+character, centered on screen. The player moves Soldier in all eight D-pad
+directions, remembers the last horizontal facing direction, and uses Soldier's
+generated 6-frame idle and two 8-frame movement sequences. Animation durations,
+signed metasprite offsets, tile indexes and OAM attributes come from the
+consolidated png2chr-studio data.
 
 The NROM foundation still performs bounded OAM DMA in NMI and runs controller,
 player, animation and OAM construction logic in the synchronized C main loop.
+The `player` module represents whichever character controller 1 owns; concrete
+graphics and animation symbols are prefixed `soldier`.
 
 ## Requirements
 

@@ -97,7 +97,7 @@ DMCFREQ   = $4010
     sta PPUSCROLL
     ; NMI on, background at $1000, sprites at $0000, nametable $2000.
     ; Keeping tile zero out of the background pattern table prevents the
-    ; cleared nametable from repeating the player's CHR tile across the screen.
+    ; cleared nametable from repeating Soldier's CHR tile across the screen.
     lda #%10010000
     sta PPUCTRL
     lda #%00011110           ; enable background and sprites safely
@@ -148,7 +148,7 @@ DMCFREQ   = $4010
     sta PPUADDR
     ldx #$00
 @load_sprite_palette:
-    lda player_sprite_palette,x
+    lda soldier_sprite_palette,x
     sta PPUDATA
     inx
     cpx #$10
@@ -156,7 +156,7 @@ DMCFREQ   = $4010
     rts
 .endproc
 
-player_sprite_palette:
+soldier_sprite_palette:
     .byte $0F, $00, $10, $37
     .byte $0F, $06, $16, $26
     .byte $0F, $09, $19, $29

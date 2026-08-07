@@ -1,11 +1,11 @@
-#include "player_animation_data.h"
+#include "soldier_animation_data.h"
 
 /*
  * Consolidated from the independently generated idle and movement exports.
  * Sprite entries retain their generated signed offsets, CHR indexes and OAM
  * attributes; only global names and aggregate offsets were changed.
  */
-static const MetaspriteTile player_sprites[] = {
+static const MetaspriteTile soldier_animation_sprites[] = {
     /* Idle: 6 frames, 7 visible sprites each. */
     { 8, 0, 0x00, 0x00 }, { 16, 0, 0x00, 0x40 },
     { 8, 8, 0x01, 0x00 }, { 16, 8, 0x02, 0x00 },
@@ -101,7 +101,7 @@ static const MetaspriteTile player_sprites[] = {
     { -24, 16, 0x2B, 0x40 },
 };
 
-static const AnimationFrame player_frames[] = {
+static const AnimationFrame soldier_animation_frames[] = {
     { 0, 7, 6 }, { 7, 7, 6 }, { 14, 7, 6 },
     { 21, 7, 6 }, { 28, 7, 6 }, { 35, 7, 6 },
     { 42, 7, 6 }, { 49, 7, 6 }, { 56, 7, 6 }, { 63, 7, 6 },
@@ -110,16 +110,17 @@ static const AnimationFrame player_frames[] = {
     { 126, 7, 6 }, { 133, 7, 6 }, { 140, 7, 6 }, { 147, 7, 6 },
 };
 
-static const AnimationDefinition player_animations[] = {
-    { 0, 6, 3, 3, PLAYER_ANIMATION_TYPE_IDLE, PLAYER_DIRECTION_NONE },
-    { 6, 8, 3, 3, PLAYER_ANIMATION_TYPE_MOVEMENT, PLAYER_DIRECTION_RIGHT },
-    { 14, 8, 3, 3, PLAYER_ANIMATION_TYPE_MOVEMENT,
-      PLAYER_GENERATED_H_FLIP | PLAYER_DIRECTION_LEFT },
+static const AnimationDefinition soldier_animations[] = {
+    { 0, 6, 3, 3, SOLDIER_ANIMATION_TYPE_IDLE, SOLDIER_DIRECTION_NONE },
+    { 6, 8, 3, 3, SOLDIER_ANIMATION_TYPE_MOVEMENT,
+      SOLDIER_DIRECTION_RIGHT },
+    { 14, 8, 3, 3, SOLDIER_ANIMATION_TYPE_MOVEMENT,
+      SOLDIER_GENERATED_H_FLIP | SOLDIER_DIRECTION_LEFT },
 };
 
-const AnimationData player_animation_data = {
-    player_sprites,
-    player_frames,
-    player_animations,
-    PLAYER_ANIMATION_COUNT,
+const AnimationData soldier_animation_data = {
+    soldier_animation_sprites,
+    soldier_animation_frames,
+    soldier_animations,
+    SOLDIER_ANIMATION_COUNT,
 };
