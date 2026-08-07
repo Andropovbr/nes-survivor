@@ -4,8 +4,8 @@
 #include "metasprite.h"
 #include "nes.h"
 #include "player.h"
-#include "player_animation_data.h"
 #include "rng.h"
+#include "soldier_animation_data.h"
 #include "tuning.h"
 
 #if MAX_EQUIPPED_WEAPONS != 4U
@@ -80,7 +80,7 @@ static void test_player_direction_and_animation_selection(void)
     CHECK(player_x() == PLAYER_INITIAL_X);
     CHECK(player_y() == PLAYER_INITIAL_Y);
     CHECK(player_facing() == PLAYER_FACING_RIGHT);
-    CHECK(player_current_animation() == PLAYER_ANIMATION_IDLE);
+    CHECK(player_current_animation() == SOLDIER_ANIMATION_IDLE);
     CHECK(player_current_frame() == 0U);
     CHECK(player_frame_timer() == 6U);
 
@@ -88,30 +88,30 @@ static void test_player_direction_and_animation_selection(void)
     CHECK(player_x() == (uint8_t)(PLAYER_INITIAL_X + 1U));
     CHECK(player_facing() == PLAYER_FACING_RIGHT);
     CHECK(player_is_moving() == 1U);
-    CHECK(player_current_animation() == PLAYER_ANIMATION_MOVEMENT_RIGHT);
+    CHECK(player_current_animation() == SOLDIER_ANIMATION_MOVEMENT_RIGHT);
     CHECK(player_current_frame() == 0U);
     CHECK(player_frame_timer() == 6U);
 
     player_update(BUTTON_UP);
     CHECK(player_y() == (uint8_t)(PLAYER_INITIAL_Y - 1U));
     CHECK(player_facing() == PLAYER_FACING_RIGHT);
-    CHECK(player_current_animation() == PLAYER_ANIMATION_MOVEMENT_RIGHT);
+    CHECK(player_current_animation() == SOLDIER_ANIMATION_MOVEMENT_RIGHT);
     CHECK(player_frame_timer() == 5U);
 
     player_update(BUTTON_LEFT);
     CHECK(player_facing() == PLAYER_FACING_LEFT);
-    CHECK(player_current_animation() == PLAYER_ANIMATION_MOVEMENT_LEFT);
+    CHECK(player_current_animation() == SOLDIER_ANIMATION_MOVEMENT_LEFT);
     CHECK(player_current_frame() == 0U);
     CHECK(player_frame_timer() == 6U);
 
     player_update(BUTTON_DOWN);
     CHECK(player_facing() == PLAYER_FACING_LEFT);
-    CHECK(player_current_animation() == PLAYER_ANIMATION_MOVEMENT_LEFT);
+    CHECK(player_current_animation() == SOLDIER_ANIMATION_MOVEMENT_LEFT);
 
     player_update(0U);
     CHECK(player_is_moving() == 0U);
     CHECK(player_facing() == PLAYER_FACING_LEFT);
-    CHECK(player_current_animation() == PLAYER_ANIMATION_IDLE);
+    CHECK(player_current_animation() == SOLDIER_ANIMATION_IDLE);
     CHECK(player_current_frame() == 0U);
     CHECK(player_frame_timer() == 6U);
 }
@@ -125,7 +125,7 @@ static void test_player_diagonal_and_bounds(void)
     CHECK(player_x() == (uint8_t)(PLAYER_INITIAL_X - 1U));
     CHECK(player_y() == (uint8_t)(PLAYER_INITIAL_Y - 1U));
     CHECK(player_facing() == PLAYER_FACING_LEFT);
-    CHECK(player_current_animation() == PLAYER_ANIMATION_MOVEMENT_LEFT);
+    CHECK(player_current_animation() == SOLDIER_ANIMATION_MOVEMENT_LEFT);
 
     player_init();
     player_update((uint8_t)(BUTTON_DOWN | BUTTON_RIGHT));
@@ -202,7 +202,7 @@ static void test_metasprite_rendering_and_idle_flip(void)
     player_update(0U);
     oam_renderer_begin(&renderer);
     player_render(&renderer);
-    CHECK(player_current_animation() == PLAYER_ANIMATION_IDLE);
+    CHECK(player_current_animation() == SOLDIER_ANIMATION_IDLE);
     CHECK(oam_shadow[2] == NES_SPRITE_FLIP_HORIZONTAL);
     CHECK(oam_shadow[3] == (uint8_t)(player_x() + 8U));
     CHECK(oam_shadow[6] == 0x00U);

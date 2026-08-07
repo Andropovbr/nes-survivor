@@ -2,7 +2,7 @@
 
 #include "animation.h"
 #include "input.h"
-#include "player_animation_data.h"
+#include "soldier_animation_data.h"
 #include "tuning.h"
 
 typedef struct {
@@ -18,11 +18,11 @@ static PlayerState player;
 static uint8_t selected_animation(void)
 {
     if (player.moving == 0U) {
-        return PLAYER_ANIMATION_IDLE;
+        return SOLDIER_ANIMATION_IDLE;
     }
     return player.facing == PLAYER_FACING_LEFT
-               ? PLAYER_ANIMATION_MOVEMENT_LEFT
-               : PLAYER_ANIMATION_MOVEMENT_RIGHT;
+               ? SOLDIER_ANIMATION_MOVEMENT_LEFT
+               : SOLDIER_ANIMATION_MOVEMENT_RIGHT;
 }
 
 void player_init(void)
@@ -31,8 +31,8 @@ void player_init(void)
     player.y = PLAYER_INITIAL_Y;
     player.facing = PLAYER_FACING_RIGHT;
     player.moving = 0U;
-    animation_player_init(&player.animation, &player_animation_data,
-                          PLAYER_ANIMATION_IDLE);
+    animation_player_init(&player.animation, &soldier_animation_data,
+                          SOLDIER_ANIMATION_IDLE);
 }
 
 void player_update(uint8_t buttons)
@@ -84,32 +84,32 @@ void player_update(uint8_t buttons)
     player.moving = (uint8_t)(((move_left ^ move_right) |
                                (move_up ^ move_down)) != 0U);
     changed_animation = animation_player_select(
-        &player.animation, &player_animation_data, selected_animation());
+        &player.animation, &soldier_animation_data, selected_animation());
     if (changed_animation == 0U) {
-        animation_player_update(&player.animation, &player_animation_data);
+        animation_player_update(&player.animation, &soldier_animation_data);
     }
 }
 
 void player_render(OamRenderer *renderer)
 {
     const AnimationDefinition *animation = animation_player_definition(
-        &player.animation, &player_animation_data);
+        &player.animation, &soldier_animation_data);
     const AnimationFrame *frame = animation_player_frame(
-        &player.animation, &player_animation_data);
+        &player.animation, &soldier_animation_data);
     int16_t anchor_x = player.x;
     uint8_t horizontal_flip = 0U;
 
     /* Generated movement-left coordinates are relative to the right edge. */
-    if (player.animation.animation == PLAYER_ANIMATION_MOVEMENT_LEFT) {
+    if (player.animation.animation == SOLDIER_ANIMATION_MOVEMENT_LEFT) {
         anchor_x += (int16_t)(animation->width_tiles * NES_SPRITE_WIDTH_PIXELS);
-    } else if (player.animation.animation == PLAYER_ANIMATION_IDLE &&
+    } else if (player.animation.animation == SOLDIER_ANIMATION_IDLE &&
                player.facing == PLAYER_FACING_LEFT) {
         horizontal_flip = 1U;
     }
 
     (void)oam_renderer_draw_metasprite(
         renderer, anchor_x, player.y,
-        &player_animation_data.sprites[frame->sprite_offset],
+        &soldier_animation_data.sprites[frame->sprite_offset],
         frame->sprite_count,
         (uint8_t)(animation->width_tiles * NES_SPRITE_WIDTH_PIXELS),
         horizontal_flip);

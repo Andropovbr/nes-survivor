@@ -61,19 +61,20 @@ scanline.
 | Total `.nes` file | 40,976 bytes | 40,976 bytes | header + PRG + CHR |
 
 PRG usage includes 220 bytes startup/palette data, 12 bytes constructor startup,
-2,609 bytes code/runtime helpers, 732 bytes generated animation RODATA, 37 bytes
-of DATA load image, and six interrupt-vector bytes. The animation RODATA consists
-of 154 four-byte metasprite tiles, 22 four-byte frame records, three seven-byte
+2,609 bytes code/runtime helpers, 732 bytes generated Soldier animation RODATA,
+37 bytes of DATA load image, and six interrupt-vector bytes. The animation
+RODATA consists of 154 four-byte metasprite tiles, 22 four-byte frame records,
+three seven-byte
 animation definitions and one seven-byte aggregate descriptor. Fill bytes occupy
 the rest of the fixed NROM image but are not counted as used content.
 
-`assets/game.chr` occupies the required full 8 KiB bank. Its player allocation is
+`assets/game.chr` occupies the required full 8 KiB bank. Soldier's allocation is
 44 16-byte tiles (704 bytes), and the remaining 7,488 bytes are currently zero.
 
 ## VBlank budget
 
 NMI always performs one OAM DMA and constant bookkeeping. Its worst-case estimate
 is approximately 583 CPU cycles including interrupt entry, or about 26% of NTSC
-VBlank. The player palette is loaded only during reset with rendering disabled;
-there are no palette, nametable or audio transfers during NMI. Any future transfer
-queue must be bounded and added to this budget.
+VBlank. Soldier's palette is loaded only during reset with rendering disabled;
+there are no palette, nametable or audio transfers during NMI. Any future
+transfer queue must be bounded and added to this budget.
