@@ -1,6 +1,6 @@
 # Architecture
 
-## Milestone 1 modules
+## Current modules
 
 - `src/crt0.s` owns the iNES header, reset path, RAM and PPU initialization,
   cc65 runtime startup, rendering enable and interrupt vectors.
@@ -9,14 +9,31 @@
 - `src/nes.s` owns the page-aligned OAM allocation, frame wait primitive and
   controller-port read routine.
 - `src/main.c` orchestrates initialization and the synchronized main loop.
-- `src/game.c` contains only the explicit `BOOT` to `RUNNING` state transition.
+- `src/game.c` owns the explicit `BOOT` to `RUNNING` transition and orchestrates
+  the player update plus deterministic OAM reconstruction.
 - `src/input.c` derives current, pressed and released button masks from the raw
   hardware sample.
 - `src/rng.c` implements deterministic `xorshift16` state and output functions.
-- `include/tuning.h` holds only initial capacities with architectural value.
+- `src/player.c` owns the compact mutable player state, bounded 8-direction
+  movement, horizontal facing, animation selection and player render policy.
+- `src/animation.c` is a reusable data-driven frame player. It stores only an
+  animation ID, local frame and countdown timer; generated durations control
+  looping, and a changed animation alone resets playback to frame zero.
+- `src/metasprite.c` hides unused OAM entries and expands signed relative tile
+  records into the existing OAM shadow. Its optional horizontal mirror adjusts
+  both geometry and the hardware flip bit.
+- `src/player_animation_data.c` consolidates the separately generated idle and
+  movement exports under unique symbols. The 154 tile records, 22 frames and
+  three definitions retain their generated values; only aggregate offsets and
+  names changed.
+- `include/tuning.h` contains the player start, speed, logical 24x24 bounds and
+  initial architectural capacities.
 
-The blank CHR-ROM is a real 8 KiB source asset linked through `src/chr.s`. The
-small files under `chr/` are deliberately not consumed in this milestone.
+The 8 KiB `assets/game.chr` bank is linked through `src/chr.s`. Sprites use
+pattern table `$0000`, matching generated tile indexes `$00-$2B`. Backgrounds
+use `$1000`, whose tile zero is blank, so a cleared nametable remains black.
+Startup loads all 16 bytes supplied by `player_sprite.pal` into `$3F10-$3F1F`
+while rendering and NMI are disabled; the player records select sprite palette 0.
 
 ## C and Assembly boundary
 
@@ -43,13 +60,36 @@ not by itself a reason to move it into Assembly.
 4. `nes_wait_frame` snapshots the counter and waits until NMI changes it. An
    8-bit comparison is atomic on 6502; wraparound is safe because 256 NMIs cannot
    occur between the snapshot and comparison.
-5. The main loop reads controller 1 and updates the minimal game state outside
-   NMI. OAM construction will also remain outside NMI when rendering is added.
+5. The main loop reads controller 1, updates player policy and animation, hides
+   old OAM entries, then emits the current seven-sprite metasprite. This work is
+   outside NMI and completes immediately after frame synchronization.
 
 The controller bit layout is A, B, Select, Start, Up, Down, Left and Right in
 bits 7 through 0. DMC is disabled, so DMA cannot corrupt the serial controller
-read. OAM DMA behavior is deterministic: all 64 sprite entries upload every NMI,
-and all are currently hidden.
+read. Opposite directions on one axis cancel on that axis. A pure vertical move
+selects movement according to remembered horizontal facing. Diagonals update
+both axes without normalization.
+
+OAM behavior is deterministic: all 64 entries upload every NMI; construction
+begins by hiding all entries, then first-come render calls receive priority. The
+player currently consumes seven entries even though its logical area is 3x3
+tiles because transparent tiles were omitted by the exporter. Movement-left
+data uses generated negative X offsets relative to its right edge; the player
+renderer shifts only the anchor by 24 pixels so its logical top-left remains
+stable. Idle-left uses reusable runtime metasprite mirroring.
+
+## Animation data and reuse
+
+`AnimationData` keeps immutable sprite, frame and animation tables separate from
+the three-byte `AnimationPlayer`. It has no knowledge of input, player state or
+OAM. `OamRenderer` likewise accepts any generated metasprite records and has no
+player dependency. Enemies, NPCs and pickups can therefore own their own compact
+playback state and call the same renderer without duplicating controller or
+character policy.
+
+The JSON exports remain authoring reference only and are not parsed by the ROM.
+Regeneration requires reconsolidating names/offsets in
+`src/player_animation_data.c`; no gameplay switch contains hardcoded frame tiles.
 
 ## Deterministic RNG
 
@@ -62,7 +102,6 @@ should be separated later if shared consumption would prevent reproducible tests
 
 Future systems should be added only when their milestone requires them:
 
-- player input, movement and rendering;
 - immutable character definitions separated from per-run character state;
 - immutable weapon definitions and compact runtime slots for automatic weapons;
 - fixed-size enemy, projectile and XP pools with documented saturation behavior;
