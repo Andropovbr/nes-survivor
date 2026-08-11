@@ -1,3 +1,5 @@
+[English](README.md) | [Português (Brasil)](README.pt-BR.md)
+
 # NES Survivor
 
 NES Survivor is a fixed-arena, survivor-like action game targeting original NES
