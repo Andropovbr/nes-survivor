@@ -78,6 +78,11 @@ not by itself a reason to move it into Assembly.
    old OAM entries, then emits the current seven-sprite metasprite. This work is
    outside NMI and completes immediately after frame synchronization.
 
+Because OAM DMA runs before that main-loop reconstruction, a newly built shadow
+becomes visible at the following NMI. Runtime tests therefore sample movement
+phase boundaries one frame later; this is the intended one-frame render pipeline,
+not missed input or an extra gameplay update.
+
 The controller bit layout is A, B, Select, Start, Up, Down, Left and Right in
 bits 7 through 0. DMC is disabled, so DMA cannot corrupt the serial controller
 read. Opposite directions on one axis cancel on that axis. A pure vertical move

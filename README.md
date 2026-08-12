@@ -34,7 +34,7 @@ No tool path is hard-coded. The build uses the executables available on `PATH`.
 ```sh
 make
 make test
-make test-runtime MESEN=/path/to/Mesen
+make test-runtime
 make clean
 ```
 
@@ -43,6 +43,14 @@ generated beside it. `make test` executes the C logic tests through cc65's
 `sim65` and validates the built iNES cartridge with Python.
 `make test-runtime` is optional and runs the ROM for 130 frames with Mesen 2's
 headless Lua test runner.
+
+On Windows, `make` uses `python` for portable build-directory creation and
+cleanup. On Unix-like hosts it uses `python3`. Override `PYTHON` or `MESEN` only
+when those executables are not on `PATH`, for example:
+
+```powershell
+make test-runtime MESEN="F:/Emulators/Mesen.exe"
+```
 
 On Windows systems without GNU Make, the equivalent checked workflow is:
 

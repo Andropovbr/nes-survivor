@@ -62,6 +62,26 @@ function Run-Tests {
     Invoke-Checked "python" @("tests/validate_rom.py", "build/nes-survivor.nes", "build/nes-survivor.map", "build/nes-survivor.lbl")
 }
 
+function Run-MesenRuntime {
+    $mesenPath = (Get-Command "mesen" -ErrorAction Stop).Source
+    $stdout = Join-Path $BuildDir "mesen-runtime.stdout.log"
+    $stderr = Join-Path $BuildDir "mesen-runtime.stderr.log"
+    $arguments = @("--testrunner", "build/nes-survivor.nes", "tests/mesen_player.lua")
+    $process = Start-Process -FilePath $mesenPath -ArgumentList $arguments `
+        -WorkingDirectory $ProjectRoot -Wait -PassThru -WindowStyle Hidden `
+        -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+
+    if (Test-Path -LiteralPath $stdout) {
+        Get-Content -LiteralPath $stdout
+    }
+    if (Test-Path -LiteralPath $stderr) {
+        Get-Content -LiteralPath $stderr | Write-Error
+    }
+    if ($process.ExitCode -ne 0) {
+        throw "Mesen runtime validation failed with exit code $($process.ExitCode)"
+    }
+}
+
 Push-Location $ProjectRoot
 try {
     switch ($Action) {
@@ -70,7 +90,7 @@ try {
         "test" { Run-Tests }
         "runtime" {
             Build-Rom
-            Invoke-Checked "mesen" @("--testrunner", "build/nes-survivor.nes", "tests/mesen_milestone1.lua")
+            Run-MesenRuntime
         }
     }
 }

@@ -24,11 +24,19 @@ Nenhum caminho de ferramenta é fixo no código (hard-coded). O build utiliza os
 ```sh
 make
 make test
-make test-runtime MESEN=/path/to/Mesen
+make test-runtime
 make clean
 ```
 
 A ROM é gerada em `build/nes-survivor.nes`; o mapa do linker e os labels são gerados ao lado dela. `make test` executa os testes de lógica em C através do `sim65` do cc65 e valida o cartucho iNES gerado com Python. `make test-runtime` é opcional e executa a ROM por 130 frames com o executor de testes Lua headless do Mesen 2.
+
+No Windows, o `make` usa `python` para criar e limpar o diretório de build de
+forma portável. Em sistemas Unix-like, utiliza `python3`. Sobrescreva `PYTHON`
+ou `MESEN` apenas quando os executáveis não estiverem no `PATH`, por exemplo:
+
+```powershell
+make test-runtime MESEN="F:/Emuladores/NES/Mesen.exe"
+```
 
 Em sistemas Windows sem GNU Make, o fluxo de trabalho equivalente e verificado é:
 

@@ -1,5 +1,5 @@
 -- Mesen 2 runtime validation for the first animated player milestone.
--- Run with: Mesen --testrunner build/nes-survivor.nes tests/mesen_milestone1.lua
+-- Run with: Mesen --testrunner build/nes-survivor.nes tests/mesen_player.lua
 
 local endFrames = 0
 local nmis = 0
@@ -70,13 +70,13 @@ emu.addEventCallback(function()
 
     if endFrames == 20 then
         sample("idleRight")
-    elseif endFrames == 45 then
+    elseif endFrames == 51 then
         sample("moveRight")
-    elseif endFrames == 65 then
+    elseif endFrames == 71 then
         sample("moveUpFacingRight")
-    elseif endFrames == 85 then
+    elseif endFrames == 91 then
         sample("moveLeft")
-    elseif endFrames == 105 then
+    elseif endFrames == 111 then
         sample("moveDownLeft")
     elseif endFrames == 125 then
         sample("idleLeft")
@@ -84,6 +84,16 @@ emu.addEventCallback(function()
         local visibleSprites = 0
         local distinctIdleTiles = 0
         local distinctMovementTiles = 0
+
+        print(string.format(
+            "samples: idleRight=(%d,%d) moveRight=(%d,%d) upRight=(%d,%d) " ..
+            "moveLeft=(%d,%d) downLeft=(%d,%d) idleLeft=(%d,%d)",
+            samples.idleRight.x, samples.idleRight.y,
+            samples.moveRight.x, samples.moveRight.y,
+            samples.moveUpFacingRight.x, samples.moveUpFacingRight.y,
+            samples.moveLeft.x, samples.moveLeft.y,
+            samples.moveDownLeft.x, samples.moveDownLeft.y,
+            samples.idleLeft.x, samples.idleLeft.y))
 
         check(nmis >= 120, "NMI did not execute on every observed frame")
         check(controllerWrites >= (nmis - 3) * 2 and controllerWrites <= nmis * 2,
@@ -162,12 +172,15 @@ emu.addEventCallback(function()
         check(nonBackgroundPixel, "player produced no visible pixels")
 
         if #failures == 0 then
-            emu.log(string.format(
+            local message = string.format(
                 "Player runtime validation passed: %d frames, %d NMIs, %d controller writes",
-                endFrames, nmis, controllerWrites))
+                endFrames, nmis, controllerWrites)
+            print(message)
+            emu.log(message)
             emu.stop(0)
         else
             for _, failure in ipairs(failures) do
+                print("FAIL: " .. failure)
                 emu.log("FAIL: " .. failure)
             end
             emu.stop(1)

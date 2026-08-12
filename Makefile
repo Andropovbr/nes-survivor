@@ -7,7 +7,12 @@ LD65 ?= ld65
 CL65 ?= cl65
 SIM65 ?= sim65
 MESEN ?= Mesen
+
+ifeq ($(OS),Windows_NT)
+PYTHON ?= python
+else
 PYTHON ?= python3
+endif
 
 CFLAGS := -t nes -Oirs --standard c99 --warnings-as-errors -I include
 AFLAGS := -t nes --warnings-as-errors -I include --bin-include-dir assets
@@ -30,7 +35,7 @@ TEST_BIN := $(BUILD_DIR)/test_logic
 all: $(ROM)
 
 $(BUILD_DIR):
-	mkdir -p $(BUILD_DIR)
+	$(PYTHON) tools/build_dir.py create
 
 $(BUILD_DIR)/c_%.s: src/%.c | $(BUILD_DIR)
 	$(CC65) $(CFLAGS) --add-source -o $@ $<
@@ -59,7 +64,7 @@ test: $(ROM) $(TEST_BIN)
 	$(PYTHON) tests/validate_rom.py $(ROM) $(MAP) $(LABELS)
 
 test-runtime: $(ROM)
-	$(MESEN) --testrunner $(ROM) tests/mesen_milestone1.lua
+	$(MESEN) --testrunner $(ROM) tests/mesen_player.lua
 
 clean:
-	rm -rf $(BUILD_DIR)
+	$(PYTHON) tools/build_dir.py clean

@@ -37,6 +37,12 @@ A lógica de gameplay deve permanecer em C a menos que a inspeção do código g
 4. `nes_wait_frame` captura uma cópia instantânea (snapshot) do contador e aguarda até que a NMI o altere. Uma comparação de 8 bits é atômica no 6502; o estouro de ciclo (wraparound) é seguro porque 256 NMIs não podem ocorrer entre a captura e a comparação.
 5. O loop principal lê o controle 1, atualiza a política e a animação do jogador, oculta as entradas antigas da OAM e, em seguida, emite o metasprite atual de sete sprites. Esse trabalho ocorre fora da NMI e é concluído imediatamente após a sincronização de frames.
 
+Como o DMA de OAM ocorre antes dessa reconstrução no loop principal, uma shadow
+recém-construída torna-se visível na NMI seguinte. Os testes de runtime, portanto,
+amostram os limites das fases de movimento um frame depois; esse é o pipeline de
+renderização intencional de um frame, não uma leitura de controle perdida nem uma
+atualização extra de gameplay.
+
 O layout de bits do controle é A, B, Select, Start, Up, Down, Left e Right nos bits 7 a 0. O DMC está desabilitado, portanto o DMA não corrompe a leitura serial do controle. Direções opostas em um mesmo eixo se anulam naquele eixo. Um movimento puramente vertical seleciona a animação de movimento de acordo com a orientação horizontal lembrada. As diagonais atualizam ambos os eixos sem normalização.
 
 O comportamento da OAM é determinístico: todas as 64 entradas são enviadas por DMA a cada NMI; a construção começa ocultando todas as entradas e, em seguida, as chamadas de renderização por ordem de chegada recebem prioridade. O Soldier controlado consome atualmente sete entradas, embora sua área lógica seja de 3x3 tiles, pois os tiles transparentes foram omitidos pelo exportador. Os dados de movimento para a esquerda do Soldier utilizam offsets de X negativos gerados em relação à sua borda direita; a integração do player desloca apenas a âncora em 24 pixels para que seu canto superior esquerdo lógico permaneça estável. Idle para a esquerda utiliza o espelhamento de metasprite reutilizável em tempo de execução.
