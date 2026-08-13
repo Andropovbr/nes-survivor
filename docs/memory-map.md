@@ -69,7 +69,7 @@ Fill bytes occupy the rest of the fixed NROM image but are not counted as used
 content.
 
 `assets/game.chr` occupies the required full 8 KiB bank. Soldier's allocation is
-13 16-byte tiles (208 bytes), and the remaining 7,984 bytes are currently zero.
+8 16-byte tiles (128 bytes), and the remaining 8,064 bytes are currently zero.
 
 ## VBlank budget
 

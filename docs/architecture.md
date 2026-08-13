@@ -44,7 +44,7 @@ integration point that selects Soldier definitions and mirrors the current
 metasprite when the facing direction is left.
 
 The 8 KiB `assets/game.chr` bank is linked through `src/chr.s`. Soldier sprites
-use pattern table `$0000`, matching generated tile indexes `$00-$0C`.
+use pattern table `$0000`, matching generated tile indexes `$00-$07`.
 Backgrounds use `$1000`, whose tile zero is blank, so a cleared nametable remains
 black. Startup loads the 16-byte Soldier sprite palette into `$3F10-$3F1F` from
 the `soldier_sprite_palette` constant while rendering and NMI are disabled;

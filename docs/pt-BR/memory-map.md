@@ -47,7 +47,7 @@ O renderizador genérico de OAM não possui nenhum buffer de sprites além da sh
 
 O uso de PRG inclui 220 bytes de dados de inicialização/paleta, 12 bytes de inicialização de construtores, 2.539 bytes de código/rotinas auxiliares de runtime, 117 bytes de RODATA de animação gerada do Soldier, 37 bytes da imagem de carga de DATA e seis bytes de vetores de interrupção. A RODATA de animação consiste em 21 tiles de metasprite de quatro bytes, 3 registros de frame de quatro bytes, duas definições de animação de sete bytes e um descritor agregado de sete bytes. Bytes de preenchimento (fill bytes) ocupam o restante da imagem NROM fixa, mas não são contabilizados como conteúdo utilizado.
 
-`assets/game.chr` ocupa todo o banco obrigatório de 8 KiB. A alocação do Soldier é de 13 tiles de 16 bytes (208 bytes), e os 7.984 bytes restantes estão atualmente zerados.
+`assets/game.chr` ocupa todo o banco obrigatório de 8 KiB. A alocação do Soldier é de 8 tiles de 16 bytes (128 bytes), e os 8.064 bytes restantes estão atualmente zerados.
 
 ## Orçamento de VBlank
 

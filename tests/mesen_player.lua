@@ -6,8 +6,7 @@ local nmis = 0
 local controllerWrites = 0
 local failures = {}
 local samples = {}
-local idleTiles = {}
-local movementTiles = {}
+local movementLegTiles = {}
 
 local function check(condition, message)
     if not condition then
@@ -62,10 +61,10 @@ end, emu.eventType.inputPolled)
 emu.addEventCallback(function()
     endFrames = endFrames + 1
 
-    if endFrames >= 10 and endFrames < 30 then
-        idleTiles[oam(1)] = true
-    elseif endFrames >= 30 and endFrames < 50 then
-        movementTiles[oam(1)] = true
+    if endFrames >= 30 and endFrames < 50 then
+        -- The simplified idle animation has one frame. Tile 5 is a leg tile
+        -- that differs between the two walking frames; the head tile does not.
+        movementLegTiles[oam(21)] = true
     end
 
     if endFrames == 20 then
@@ -82,8 +81,7 @@ emu.addEventCallback(function()
         sample("idleLeft")
     elseif endFrames == 130 then
         local visibleSprites = 0
-        local distinctIdleTiles = 0
-        local distinctMovementTiles = 0
+        local distinctMovementLegTiles = 0
 
         print(string.format(
             "samples: idleRight=(%d,%d) moveRight=(%d,%d) upRight=(%d,%d) " ..
@@ -137,14 +135,11 @@ emu.addEventCallback(function()
               samples.idleLeft.secondX < samples.idleLeft.x,
             "released input did not select correctly mirrored idle-left")
 
-        for _ in pairs(idleTiles) do
-            distinctIdleTiles = distinctIdleTiles + 1
+        for _ in pairs(movementLegTiles) do
+            distinctMovementLegTiles = distinctMovementLegTiles + 1
         end
-        for _ in pairs(movementTiles) do
-            distinctMovementTiles = distinctMovementTiles + 1
-        end
-        check(distinctIdleTiles >= 2, "idle animation did not advance through generated frames")
-        check(distinctMovementTiles >= 2, "movement animation did not advance through generated frames")
+        check(distinctMovementLegTiles >= 2,
+            "walking animation did not advance through both generated frames")
 
         local expectedSpritePalette = {
             [0x10] = 0x0F, [0x11] = 0x00, [0x12] = 0x10, [0x13] = 0x37,
