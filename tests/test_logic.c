@@ -82,38 +82,38 @@ static void test_player_direction_and_animation_selection(void)
     CHECK(player_facing() == PLAYER_FACING_RIGHT);
     CHECK(player_current_animation() == SOLDIER_ANIMATION_IDLE);
     CHECK(player_current_frame() == 0U);
-    CHECK(player_frame_timer() == 6U);
+    CHECK(player_frame_timer() == 12U);
 
     player_update(BUTTON_RIGHT);
     CHECK(player_x() == (uint8_t)(PLAYER_INITIAL_X + 1U));
     CHECK(player_facing() == PLAYER_FACING_RIGHT);
     CHECK(player_is_moving() == 1U);
-    CHECK(player_current_animation() == SOLDIER_ANIMATION_MOVEMENT_RIGHT);
+    CHECK(player_current_animation() == SOLDIER_ANIMATION_MOVEMENT);
     CHECK(player_current_frame() == 0U);
-    CHECK(player_frame_timer() == 6U);
+    CHECK(player_frame_timer() == 12U);
 
     player_update(BUTTON_UP);
     CHECK(player_y() == (uint8_t)(PLAYER_INITIAL_Y - 1U));
     CHECK(player_facing() == PLAYER_FACING_RIGHT);
-    CHECK(player_current_animation() == SOLDIER_ANIMATION_MOVEMENT_RIGHT);
-    CHECK(player_frame_timer() == 5U);
+    CHECK(player_current_animation() == SOLDIER_ANIMATION_MOVEMENT);
+    CHECK(player_frame_timer() == 11U);
 
     player_update(BUTTON_LEFT);
     CHECK(player_facing() == PLAYER_FACING_LEFT);
-    CHECK(player_current_animation() == SOLDIER_ANIMATION_MOVEMENT_LEFT);
+    CHECK(player_current_animation() == SOLDIER_ANIMATION_MOVEMENT);
     CHECK(player_current_frame() == 0U);
-    CHECK(player_frame_timer() == 6U);
+    CHECK(player_frame_timer() == 10U);
 
     player_update(BUTTON_DOWN);
     CHECK(player_facing() == PLAYER_FACING_LEFT);
-    CHECK(player_current_animation() == SOLDIER_ANIMATION_MOVEMENT_LEFT);
+    CHECK(player_current_animation() == SOLDIER_ANIMATION_MOVEMENT);
 
     player_update(0U);
     CHECK(player_is_moving() == 0U);
     CHECK(player_facing() == PLAYER_FACING_LEFT);
     CHECK(player_current_animation() == SOLDIER_ANIMATION_IDLE);
     CHECK(player_current_frame() == 0U);
-    CHECK(player_frame_timer() == 6U);
+    CHECK(player_frame_timer() == 12U);
 }
 
 static void test_player_diagonal_and_bounds(void)
@@ -125,7 +125,7 @@ static void test_player_diagonal_and_bounds(void)
     CHECK(player_x() == (uint8_t)(PLAYER_INITIAL_X - 1U));
     CHECK(player_y() == (uint8_t)(PLAYER_INITIAL_Y - 1U));
     CHECK(player_facing() == PLAYER_FACING_LEFT);
-    CHECK(player_current_animation() == SOLDIER_ANIMATION_MOVEMENT_LEFT);
+    CHECK(player_current_animation() == SOLDIER_ANIMATION_MOVEMENT);
 
     player_init();
     player_update((uint8_t)(BUTTON_DOWN | BUTTON_RIGHT));
@@ -167,19 +167,27 @@ static void test_animation_duration_and_loop(void)
     uint16_t updates;
 
     player_init();
-    for (updates = 0U; updates < 5U; ++updates) {
-        player_update(0U);
+    player_update(BUTTON_RIGHT);
+    CHECK(player_current_animation() == SOLDIER_ANIMATION_MOVEMENT);
+    CHECK(player_current_frame() == 0U);
+    CHECK(player_frame_timer() == 12U);
+
+    for (updates = 0U; updates < 11U; ++updates) {
+        player_update(BUTTON_RIGHT);
         CHECK(player_current_frame() == 0U);
     }
-    player_update(0U);
-    CHECK(player_current_frame() == 1U);
-    CHECK(player_frame_timer() == 6U);
+    CHECK(player_frame_timer() == 1U);
 
-    for (updates = 0U; updates < 30U; ++updates) {
-        player_update(0U);
+    player_update(BUTTON_RIGHT);
+    CHECK(player_current_frame() == 1U);
+    CHECK(player_frame_timer() == 12U);
+
+    for (updates = 0U; updates < 12U; ++updates) {
+        player_update(BUTTON_RIGHT);
     }
+
     CHECK(player_current_frame() == 0U);
-    CHECK(player_frame_timer() == 6U);
+    CHECK(player_frame_timer() == 12U);
 }
 
 static void test_metasprite_rendering_and_idle_flip(void)
@@ -187,18 +195,17 @@ static void test_metasprite_rendering_and_idle_flip(void)
     OamRenderer renderer;
 
     player_init();
+    player_update(BUTTON_LEFT);
     oam_renderer_begin(&renderer);
     player_render(&renderer);
+    CHECK(player_current_animation() == SOLDIER_ANIMATION_MOVEMENT);
     CHECK(renderer.next_sprite == 7U);
     CHECK(oam_shadow[0] == (uint8_t)(PLAYER_INITIAL_Y - 1U));
     CHECK(oam_shadow[1] == 0x00U);
-    CHECK(oam_shadow[2] == 0x00U);
-    CHECK(oam_shadow[3] == (uint8_t)(PLAYER_INITIAL_X + 8U));
-    CHECK(oam_shadow[7] == (uint8_t)(PLAYER_INITIAL_X + 16U));
-    CHECK(oam_shadow[6] == NES_SPRITE_FLIP_HORIZONTAL);
-    CHECK(oam_shadow[7U * 4U] == 0xFFU);
-
-    player_update(BUTTON_LEFT);
+    CHECK(oam_shadow[2] == NES_SPRITE_FLIP_HORIZONTAL);
+    CHECK(oam_shadow[3] == (uint8_t)(player_x() + 8U));
+    CHECK(oam_shadow[6] == 0x00U);
+    CHECK(oam_shadow[7] == player_x());
     player_update(0U);
     oam_renderer_begin(&renderer);
     player_render(&renderer);
