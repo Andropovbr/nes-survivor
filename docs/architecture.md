@@ -23,8 +23,8 @@
   records into the existing OAM shadow. Its optional horizontal mirror adjusts
   both geometry and the hardware flip bit.
 - `src/soldier_animation_data.c` consolidates the separately generated Soldier
-  idle and movement exports under `soldier` symbols. The 154 tile records, 22
-  frames and three definitions retain their generated values; only aggregate
+  idle and walking exports under `soldier` symbols. The 21 tile records, 3
+  frames and 2 definitions retain their generated values; only aggregate
   offsets and names changed.
 - `include/tuning.h` contains the player start, speed, logical 24x24 bounds and
   initial architectural capacities.
@@ -40,10 +40,11 @@ it is a reusable animation playback cursor, not the playable character identity.
 `soldier_animation_data`, `SOLDIER_ANIMATION_*`, the internal
 `soldier_animation_sprites`/frames/definitions tables and
 `soldier_sprite_palette` are asset-specific. The player module is the only C
-integration point that selects Soldier definitions.
+integration point that selects Soldier definitions and mirrors the current
+metasprite when the facing direction is left.
 
 The 8 KiB `assets/game.chr` bank is linked through `src/chr.s`. Soldier sprites
-use pattern table `$0000`, matching generated tile indexes `$00-$2B`.
+use pattern table `$0000`, matching generated tile indexes `$00-$0C`.
 Backgrounds use `$1000`, whose tile zero is blank, so a cleared nametable remains
 black. Startup loads the 16-byte Soldier sprite palette into `$3F10-$3F1F` from
 the `soldier_sprite_palette` constant while rendering and NMI are disabled;
@@ -92,11 +93,10 @@ both axes without normalization.
 OAM behavior is deterministic: all 64 entries upload every NMI; construction
 begins by hiding all entries, then first-come render calls receive priority. The
 controlled Soldier currently consumes seven entries even though its logical
-area is 3x3 tiles because transparent tiles were omitted by the exporter.
-Soldier's movement-left data uses generated negative X offsets relative to its
-right edge; the player integration shifts only the anchor by 24 pixels so its
-logical top-left remains stable. Idle-left uses reusable runtime metasprite
-mirroring.
+area is 3x3 tiles because transparent tiles were omitted by the exporter. The
+player integration keeps the same 24-pixel anchor for both facings and mirrors
+the current metasprite at render time when the Soldier faces left, so there is
+no separate movement-left anchor shift.
 
 ## Animation data and reuse
 
@@ -111,8 +111,8 @@ The JSON exports remain authoring reference only and are not parsed by the ROM.
 Regeneration requires reconsolidating names/offsets in
 `src/soldier_animation_data.c`; no gameplay switch contains hardcoded frame
 tiles. The generic `player` module currently selects `soldier_animation_data` at
-its character-integration boundary; no character registry or selection system
-exists yet.
+its character-integration boundary and relies on runtime mirroring for left
+facing; no character registry or selection system exists yet.
 
 ## Deterministic RNG
 

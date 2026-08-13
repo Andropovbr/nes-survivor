@@ -1,4 +1,4 @@
-# Arquitetura
+﻿# Arquitetura
 
 ## Módulos atuais
 
@@ -12,16 +12,16 @@
 - `src/player.c` gerencia o estado mutável e compacto do jogador, movimentação delimitada em 8 direções, orientação horizontal, seleção de animação e política de renderização do jogador.
 - `src/animation.c` é um reprodutor de frames reutilizável e orientado a dados. Ele armazena apenas o ID da animação, frame local e temporizador de contagem regressiva; durações geradas controlam a repetição (looping), e apenas a alteração de animação reinicia a reprodução para o frame zero.
 - `src/metasprite.c` oculta entradas não utilizadas da OAM e expande registros de tiles relativos com sinal para a shadow de OAM existente. Seu espelhamento horizontal opcional ajusta tanto a geometria quanto o bit de inversão (flip) de hardware.
-- `src/soldier_animation_data.c` consolida as exportações de idle e movimento do Soldier geradas separadamente sob os símbolos `soldier`. Os 154 registros de tiles, 22 frames e três definições mantêm seus valores gerados; apenas os offsets agregados e nomes foram alterados.
+- `src/soldier_animation_data.c` consolida as exportações de idle e caminhada do Soldier geradas separadamente sob os símbolos `soldier`. Os 21 registros de tiles, 3 frames e 2 definições mantêm seus valores gerados; apenas os offsets agregados e nomes foram alterados.
 - `include/tuning.h` contém a posição inicial do jogador, velocidade, limites lógicos de 24x24 e capacidades arquiteturais iniciais.
 
 ## Limite de nomenclatura entre Player e Soldier
 
 `player` representa a entidade em tempo de execução controlada através do controle 1. `PlayerState`, `PlayerFacing`, a API `player_*` e os limites de posição/movimentação `PLAYER_*` permanecem, portanto, independentes de personagem. `AnimationPlayer` também permanece genérico: é um cursor de reprodução de animação reutilizável, não a identidade do personagem jogável.
 
-`soldier` representa a arte concreta atualmente vinculada a essa entidade em tempo de execução. `soldier_animation_data`, `SOLDIER_ANIMATION_*`, as tabelas internas de `soldier_animation_sprites`/frames/definitions e `soldier_sprite_palette` são específicas do asset. O módulo de player é o único ponto de integração em C que seleciona as definições do Soldier.
+`soldier` representa a arte concreta atualmente vinculada a essa entidade em tempo de execução. `soldier_animation_data`, `SOLDIER_ANIMATION_*`, as tabelas internas de `soldier_animation_sprites`/frames/definitions e `soldier_sprite_palette` são específicas do asset. O módulo de player é o único ponto de integração em C que seleciona as definições do Soldier e espelha o metasprite atual quando a orientação é para a esquerda.
 
-O banco de 8 KiB de `assets/game.chr` é vinculado através de `src/chr.s`. Os sprites do Soldier utilizam a pattern table `$0000`, correspondendo aos índices de tiles gerados `$00-$2B`. Os backgrounds utilizam `$1000`, cujo tile zero está em branco, de modo que uma nametable limpa permaneça preta. A inicialização carrega a paleta de sprites de 16 bytes do Soldier em `$3F10-$3F1F` a partir da constante `soldier_sprite_palette` enquanto a renderização e a NMI estão desabilitadas; os registros de metasprite do Soldier selecionam a paleta de sprites 0.
+O banco de 8 KiB de `assets/game.chr` é vinculado através de `src/chr.s`. Os sprites do Soldier utilizam a pattern table `Os sprites do Soldier utilizam a pattern table `$0000`, correspondendo aos índices de tiles gerados `$00-$2B`.`, correspondendo aos índices de tiles gerados `Os sprites do Soldier utilizam a pattern table `$0000`, correspondendo aos índices de tiles gerados `$00-$2B`.-Os sprites do Soldier utilizam a pattern table `$0000`, correspondendo aos índices de tiles gerados `$00-$2B`.C`. Os backgrounds utilizam `$1000`, cujo tile zero está em branco, de modo que uma nametable limpa permaneça preta. A inicialização carrega a paleta de sprites de 16 bytes do Soldier em `$3F10-$3F1F` a partir da constante `soldier_sprite_palette` enquanto a renderização e a NMI estão desabilitadas; os registros de metasprite do Soldier selecionam a paleta de sprites 0.
 
 ## Limite entre C e Assembly
 
@@ -45,13 +45,13 @@ atualização extra de gameplay.
 
 O layout de bits do controle é A, B, Select, Start, Up, Down, Left e Right nos bits 7 a 0. O DMC está desabilitado, portanto o DMA não corrompe a leitura serial do controle. Direções opostas em um mesmo eixo se anulam naquele eixo. Um movimento puramente vertical seleciona a animação de movimento de acordo com a orientação horizontal lembrada. As diagonais atualizam ambos os eixos sem normalização.
 
-O comportamento da OAM é determinístico: todas as 64 entradas são enviadas por DMA a cada NMI; a construção começa ocultando todas as entradas e, em seguida, as chamadas de renderização por ordem de chegada recebem prioridade. O Soldier controlado consome atualmente sete entradas, embora sua área lógica seja de 3x3 tiles, pois os tiles transparentes foram omitidos pelo exportador. Os dados de movimento para a esquerda do Soldier utilizam offsets de X negativos gerados em relação à sua borda direita; a integração do player desloca apenas a âncora em 24 pixels para que seu canto superior esquerdo lógico permaneça estável. Idle para a esquerda utiliza o espelhamento de metasprite reutilizável em tempo de execução.
+O comportamento da OAM é determinístico: todas as 64 entradas são enviadas por DMA a cada NMI; a construção começa ocultando todas as entradas e, em seguida, as chamadas de renderização por ordem de chegada recebem prioridade. O Soldier controlado consome atualmente sete entradas, embora sua área lógica seja de 3x3 tiles, pois os tiles transparentes foram omitidos pelo exportador. A integração do player mantém a mesma âncora de 24 pixels para ambas as orientações e espelha o metasprite atual no momento da renderização quando o Soldier olha para a esquerda, portanto não existe mais um deslocamento separado para movimento à esquerda.
 
 ## Dados de animação e reutilização
 
 `AnimationData` mantém as tabelas imutáveis de sprites, frames e animações separadas do `AnimationPlayer` de três bytes. Ele não possui conhecimento sobre entrada do controle, estado do jogador ou OAM. Da mesma forma, `OamRenderer` aceita quaisquer registros de metasprite gerados e não possui dependência do player. Inimigos, NPCs e itens coletáveis podem, portanto, ter seu próprio estado de reprodução compacto e chamar o mesmo renderizador sem duplicar a lógica de controle ou política de personagens.
 
-As exportações em JSON permanecem apenas como referência de criação e não são interpretadas pela ROM. A regeneração requer a reconsolidação de nomes/offsets em `src/soldier_animation_data.c`; nenhuma estrutura de controle de gameplay contém tiles de frames codificados diretamente (hardcoded). O módulo genérico `player` seleciona atualmente `soldier_animation_data` em seu limite de integração de personagem; nenhum registro de personagens ou sistema de seleção existe no momento.
+As exportações em JSON permanecem apenas como referência de criação e não são interpretadas pela ROM. A regeneração requer a reconsolidação de nomes/offsets em `src/soldier_animation_data.c`; nenhuma estrutura de controle de gameplay contém tiles de frames codificados diretamente (hardcoded). O módulo genérico `player` seleciona atualmente `soldier_animation_data` em seu limite de integração de personagem e depende do espelhamento em runtime para a orientação para a esquerda; nenhum registro de personagens ou sistema de seleção existe no momento.
 
 ## RNG determinístico
 
@@ -71,3 +71,4 @@ Sistemas futuros devem ser adicionados apenas quando seus respectivos marcos (mi
 O conteúdo deve utilizar IDs compactos e índices de array, e não ponteiros de posse ou alocação dinâmica na heap. As tabelas de definição permanecem imutáveis; o estado mutável da partida permanece em pools de tamanho fixo. Adicionar um personagem, arma, inimigo ou fase deve adicionar uma entrada na tabela e introduzir código especializado apenas para comportamentos genuinamente distintos.
 
 Nenhum módulo futuro vazio ou estrutura especulativa de runtime existe no momento. Isso mantém o mapa do linker fidedigno e cada alteração futura passível de revisão.
+

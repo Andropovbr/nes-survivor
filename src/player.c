@@ -20,9 +20,7 @@ static uint8_t selected_animation(void)
     if (player.moving == 0U) {
         return SOLDIER_ANIMATION_IDLE;
     }
-    return player.facing == PLAYER_FACING_LEFT
-               ? SOLDIER_ANIMATION_MOVEMENT_LEFT
-               : SOLDIER_ANIMATION_MOVEMENT_RIGHT;
+    return SOLDIER_ANIMATION_MOVEMENT;
 }
 
 void player_init(void)
@@ -97,15 +95,8 @@ void player_render(OamRenderer *renderer)
     const AnimationFrame *frame = animation_player_frame(
         &player.animation, &soldier_animation_data);
     int16_t anchor_x = player.x;
-    uint8_t horizontal_flip = 0U;
-
-    /* Generated movement-left coordinates are relative to the right edge. */
-    if (player.animation.animation == SOLDIER_ANIMATION_MOVEMENT_LEFT) {
-        anchor_x += (int16_t)(animation->width_tiles * NES_SPRITE_WIDTH_PIXELS);
-    } else if (player.animation.animation == SOLDIER_ANIMATION_IDLE &&
-               player.facing == PLAYER_FACING_LEFT) {
-        horizontal_flip = 1U;
-    }
+    uint8_t horizontal_flip =
+        (uint8_t)(player.facing == PLAYER_FACING_LEFT);
 
     (void)oam_renderer_draw_metasprite(
         renderer, anchor_x, player.y,

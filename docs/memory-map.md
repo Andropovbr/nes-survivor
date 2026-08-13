@@ -56,20 +56,20 @@ scanline.
 | Region | Used content | Capacity | Notes |
 | --- | ---: | ---: | --- |
 | iNES header | 16 bytes | 16 bytes | mapper 0, NROM-256, horizontal mirroring |
-| PRG-ROM | 3,616 bytes | 32,768 bytes | 11.04% used; 29,152 bytes free |
-| CHR-ROM | 704 assigned bytes | 8,192 bytes | tile indexes `$00-$2B`; 7,488 bytes remain blank |
+| PRG-ROM | 2,931 bytes | 32,768 bytes | 8.95% used; 29,837 bytes free |
+| CHR-ROM | 208 assigned bytes | 8,192 bytes | tile indexes `$00-$0C`; 7,984 bytes remain blank |
 | Total `.nes` file | 40,976 bytes | 40,976 bytes | header + PRG + CHR |
 
 PRG usage includes 220 bytes startup/palette data, 12 bytes constructor startup,
-2,609 bytes code/runtime helpers, 732 bytes generated Soldier animation RODATA,
+2,539 bytes code/runtime helpers, 117 bytes generated Soldier animation RODATA,
 37 bytes of DATA load image, and six interrupt-vector bytes. The animation
-RODATA consists of 154 four-byte metasprite tiles, 22 four-byte frame records,
-three seven-byte
-animation definitions and one seven-byte aggregate descriptor. Fill bytes occupy
-the rest of the fixed NROM image but are not counted as used content.
+RODATA consists of 21 four-byte metasprite tiles, 3 four-byte frame records,
+two seven-byte animation definitions and one seven-byte aggregate descriptor.
+Fill bytes occupy the rest of the fixed NROM image but are not counted as used
+content.
 
 `assets/game.chr` occupies the required full 8 KiB bank. Soldier's allocation is
-44 16-byte tiles (704 bytes), and the remaining 7,488 bytes are currently zero.
+13 16-byte tiles (208 bytes), and the remaining 7,984 bytes are currently zero.
 
 ## VBlank budget
 

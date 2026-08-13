@@ -1,4 +1,4 @@
-# Mapa de memória e orçamentos
+﻿# Mapa de memória e orçamentos
 
 As medições abaixo são provenientes de `build/nes-survivor.map`, gerado pelo cc65 2.19 após o primeiro marco de jogador animado. Regenere o mapa após a adição de cada sistema significativo.
 
@@ -41,14 +41,15 @@ O renderizador genérico de OAM não possui nenhum buffer de sprites além da sh
 | Região | Conteúdo utilizado | Capacidade | Notas |
 | --- | ---: | ---: | --- |
 | Cabeçalho iNES | 16 bytes | 16 bytes | mapper 0, NROM-256, espelhamento horizontal |
-| PRG-ROM | 3.616 bytes | 32.768 bytes | 11,04% utilizado; 29.152 bytes livres |
-| CHR-ROM | 704 bytes atribuídos | 8.192 bytes | índices de tiles `$00-$2B`; 7.488 bytes permanecem em branco |
+| PRG-ROM | 2.931 bytes | 32.768 bytes | 8,95% utilizado; 29.837 bytes livres |
+| CHR-ROM | 208 bytes atribuídos | 8.192 bytes | índices de tiles `| CHR-ROM | 704 bytes atribuídos | 8.192 bytes | índices de tiles `$00-$2B`; 7.488 bytes permanecem em branco |-| CHR-ROM | 704 bytes atribuídos | 8.192 bytes | índices de tiles `$00-$2B`; 7.488 bytes permanecem em branco |C`; 7.984 bytes permanecem em branco |
 | Total do arquivo `.nes` | 40.976 bytes | 40.976 bytes | cabeçalho + PRG + CHR |
 
-O uso de PRG inclui 220 bytes de dados de inicialização/paleta, 12 bytes de inicialização de construtores, 2.609 bytes de código/rotinas auxiliares de runtime, 732 bytes de RODATA de animação gerada do Soldier, 37 bytes da imagem de carga de DATA e seis bytes de vetores de interrupção. A RODATA de animação consiste em 154 tiles de metasprite de quatro bytes, 22 registros de frame de quatro bytes, três definições de animação de sete bytes e um descritor agregado de sete bytes. Bytes de preenchimento (fill bytes) ocupam o restante da imagem NROM fixa, mas não são contabilizados como conteúdo utilizado.
+O uso de PRG inclui 220 bytes de dados de inicialização/paleta, 12 bytes de inicialização de construtores, 2.539 bytes de código/rotinas auxiliares de runtime, 117 bytes de RODATA de animação gerada do Soldier, 37 bytes da imagem de carga de DATA e seis bytes de vetores de interrupção. A RODATA de animação consiste em 21 tiles de metasprite de quatro bytes, 3 registros de frame de quatro bytes, duas definições de animação de sete bytes e um descritor agregado de sete bytes. Bytes de preenchimento (fill bytes) ocupam o restante da imagem NROM fixa, mas não são contabilizados como conteúdo utilizado.
 
-`assets/game.chr` ocupa todo o banco obrigatório de 8 KiB. A alocação do Soldier é de 44 tiles de 16 bytes (704 bytes), e os 7.488 bytes restantes estão atualmente zerados.
+`assets/game.chr` ocupa todo o banco obrigatório de 8 KiB. A alocação do Soldier é de 13 tiles de 16 bytes (208 bytes), e os 7.984 bytes restantes estão atualmente zerados.
 
 ## Orçamento de VBlank
 
 A NMI sempre executa um DMA de OAM e rotinas constantes de controle interno. Sua estimativa no pior caso é de aproximadamente 583 ciclos de CPU, incluindo a entrada da interrupção, ou cerca de 26% do VBlank em NTSC. A paleta do Soldier é carregada apenas durante o reset com a renderização desabilitada; não há transferências de paleta, nametable ou áudio durante a NMI. Qualquer fila de transferência futura deve ser delimitada e adicionada a este orçamento.
+
