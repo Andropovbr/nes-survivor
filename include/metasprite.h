@@ -15,6 +15,11 @@ typedef struct {
 } OamRenderer;
 
 void oam_renderer_begin(OamRenderer *renderer);
+uint8_t oam_renderer_draw_sprite(OamRenderer *renderer,
+                                 uint8_t x,
+                                 uint8_t y,
+                                 uint8_t tile,
+                                 uint8_t attributes);
 uint8_t oam_renderer_draw_metasprite(OamRenderer *renderer,
                                      int16_t anchor_x,
                                      int16_t anchor_y,

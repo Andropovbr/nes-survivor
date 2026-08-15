@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+#include "enemy.h"
 #include "input.h"
 #include "metasprite.h"
 #include "nes.h"
@@ -35,6 +36,17 @@ uint8_t oam_shadow[256];
 
 /* Test-only entry point compiled by input.c when UNIT_TEST is defined. */
 void input_test_apply(uint8_t sample);
+
+static uint8_t active_enemy_count(void)
+{
+    uint8_t index;
+    uint8_t count = 0U;
+
+    for (index = 0U; index < MAX_ACTIVE_ENEMIES; ++index) {
+        count = (uint8_t)(count + enemy_is_active(index));
+    }
+    return count;
+}
 
 /* Satisfies input.c without NES hardware in the sim6502 test target. */
 uint8_t nes_read_controller(void)
@@ -220,17 +232,25 @@ static void test_metasprite_rendering_and_idle_flip(void)
 static void test_automatic_sword_attack_and_rendering(void)
 {
     OamRenderer renderer;
+    WeaponSwordHitbox hitbox;
     uint8_t updates;
 
     player_init();
     weapon_sword_init();
     CHECK(weapon_sword_is_attacking() == 0U);
+    CHECK(weapon_sword_hitbox(&hitbox, player_x(), player_y(), 0U) == 0U);
 
     weapon_sword_update();
     CHECK(weapon_sword_is_attacking() == 1U);
     CHECK(weapon_sword_active_frames() == SWORD_ATTACK_ACTIVE_FRAMES);
     CHECK(weapon_sword_frames_until_attack() ==
           (uint8_t)(SWORD_ATTACK_COOLDOWN_FRAMES - 1U));
+    CHECK(weapon_sword_hitbox(&hitbox, player_x(), player_y(), 0U) == 1U);
+    CHECK(hitbox.x == (int16_t)(PLAYER_INITIAL_X + PLAYER_WIDTH_PIXELS));
+    CHECK(hitbox.y ==
+          (int16_t)(PLAYER_INITIAL_Y + SWORD_VERTICAL_OFFSET_PIXELS));
+    CHECK(hitbox.width == SWORD_WIDTH_PIXELS);
+    CHECK(hitbox.height == 16U);
 
     oam_renderer_begin(&renderer);
     player_render(&renderer);
@@ -250,6 +270,7 @@ static void test_automatic_sword_attack_and_rendering(void)
     CHECK(weapon_sword_active_frames() == 1U);
     weapon_sword_update();
     CHECK(weapon_sword_is_attacking() == 0U);
+    CHECK(weapon_sword_hitbox(&hitbox, player_x(), player_y(), 0U) == 0U);
 
     for (updates = SWORD_ATTACK_ACTIVE_FRAMES;
          updates < SWORD_ATTACK_COOLDOWN_FRAMES; ++updates) {
@@ -264,6 +285,67 @@ static void test_automatic_sword_attack_and_rendering(void)
     CHECK(weapon_sword_render(&renderer, player_x(), player_y(), 1U) == 2U);
     CHECK(oam_shadow[30] == NES_SPRITE_FLIP_HORIZONTAL);
     CHECK(oam_shadow[31] == (uint8_t)(player_x() - SWORD_WIDTH_PIXELS));
+}
+
+static void test_enemy_spawn_movement_collision_and_saturation(void)
+{
+    uint16_t update;
+    uint8_t before_x;
+    uint8_t before_y;
+    uint8_t target_x;
+    uint8_t target_y;
+    WeaponSwordHitbox hitbox;
+
+    rng_seed(INITIAL_RNG_SEED);
+    enemy_init();
+    for (update = 0U; update < BAT_INITIAL_SPAWN_DELAY_FRAMES - 1U;
+         ++update) {
+        enemy_update(120U, 100U);
+    }
+    CHECK(active_enemy_count() == 0U);
+    enemy_update(120U, 100U);
+    CHECK(active_enemy_count() == 1U);
+    CHECK(enemy_is_active(0U) != 0U);
+
+    for (update = 0U; update < BAT_SPAWN_INTERVAL_FRAMES - 1U; ++update) {
+        enemy_update(120U, 100U);
+    }
+    CHECK(active_enemy_count() == 1U);
+    enemy_update(120U, 100U);
+    CHECK(active_enemy_count() == 2U);
+
+    before_x = enemy_x(0U);
+    before_y = enemy_y(0U);
+    target_x = before_x < 120U ? BAT_MAX_X : BAT_MIN_X;
+    target_y = before_y < 116U ? BAT_MAX_Y : BAT_MIN_Y;
+    for (update = 0U; update < 16U; ++update) {
+        enemy_update(target_x, target_y);
+    }
+    CHECK(enemy_x(0U) == (uint8_t)(before_x < target_x
+                                        ? before_x + 12U
+                                        : before_x - 12U));
+    CHECK(enemy_y(0U) == (uint8_t)(before_y < target_y
+                                        ? before_y + 12U
+                                        : before_y - 12U));
+
+    hitbox.x = enemy_x(0U);
+    hitbox.y = enemy_y(0U);
+    hitbox.width = BAT_WIDTH_PIXELS;
+    hitbox.height = BAT_HEIGHT_PIXELS;
+    enemy_apply_sword_hitbox(&hitbox);
+    CHECK(enemy_is_active(0U) == 0U);
+    CHECK(active_enemy_count() == 1U);
+
+    for (update = 0U;
+         update < (uint16_t)(BAT_SPAWN_INTERVAL_FRAMES *
+                             (MAX_ACTIVE_ENEMIES + 2U));
+         ++update) {
+        enemy_update(120U, 100U);
+    }
+    CHECK(active_enemy_count() == MAX_ACTIVE_ENEMIES);
+    CHECK(enemy_is_active(MAX_ACTIVE_ENEMIES) == 0U);
+    CHECK(enemy_x(MAX_ACTIVE_ENEMIES) == 0U);
+    CHECK(enemy_y(MAX_ACTIVE_ENEMIES) == 0U);
 }
 
 static void test_sword_screen_edges_and_oam_saturation(void)
@@ -296,5 +378,6 @@ int main(void)
     test_metasprite_rendering_and_idle_flip();
     test_automatic_sword_attack_and_rendering();
     test_sword_screen_edges_and_oam_saturation();
+    test_enemy_spawn_movement_collision_and_saturation();
     return failures;
 }

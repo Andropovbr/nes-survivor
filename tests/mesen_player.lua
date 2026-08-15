@@ -1,4 +1,4 @@
--- Mesen 2 runtime validation for the first animated player milestone.
+-- Mesen 2 runtime validation for player, animated sword and Bat spawning.
 -- Run with: Mesen --testrunner build/nes-survivor.nes tests/mesen_player.lua
 
 local endFrames = 0
@@ -13,6 +13,11 @@ local swordWasVisible = false
 local swordVisibleFrames = 0
 local sawSwordRight = false
 local sawSwordLeft = false
+local batAppearances = {}
+local previousBatCount = 0
+local currentBatCount = 0
+local firstBatSample = nil
+local laterBatSample = nil
 
 local function check(condition, message)
     if not condition then
@@ -60,6 +65,18 @@ emu.addEventCallback(function()
     elseif endFrames >= 90 and endFrames < 110 then
         input.down = true
         input.left = true
+    elseif endFrames >= 130 and endFrames < 190 then
+        input.right = true
+    elseif endFrames >= 190 and endFrames < 250 then
+        input.down = true
+    elseif endFrames >= 250 and endFrames < 310 then
+        input.left = true
+    elseif endFrames >= 310 and endFrames < 370 then
+        input.up = true
+    elseif endFrames >= 370 and endFrames < 430 then
+        input.right = true
+    elseif endFrames >= 430 then
+        input.down = true
     end
     emu.setInput(input, 0)
 end, emu.eventType.inputPolled)
@@ -90,6 +107,29 @@ emu.addEventCallback(function()
     end
     swordWasVisible = swordVisible
 
+    currentBatCount = 0
+    local firstBat = nil
+    for sprite = 0, 63 do
+        local offset = sprite * 4
+        local tile = oam(offset + 1)
+        if oam(offset) ~= 0xFF and (tile == 0x0A or tile == 0x0C) then
+            currentBatCount = currentBatCount + 1
+            if firstBat == nil then
+                firstBat = { x = oam(offset + 3), y = oam(offset), tile = tile }
+            end
+        end
+    end
+    if currentBatCount > previousBatCount then
+        table.insert(batAppearances, endFrames)
+    end
+    previousBatCount = currentBatCount
+    if firstBatSample == nil and firstBat ~= nil then
+        firstBatSample = firstBat
+    elseif firstBatSample ~= nil and laterBatSample == nil and
+           endFrames >= batAppearances[1] + 20 and firstBat ~= nil then
+        laterBatSample = firstBat
+    end
+
     if endFrames >= 30 and endFrames < 50 then
         -- The simplified idle animation has one frame. Tile 5 is a leg tile
         -- that differs between the two walking frames; the head tile does not.
@@ -108,7 +148,7 @@ emu.addEventCallback(function()
         sample("moveDownLeft")
     elseif endFrames == 125 then
         sample("idleLeft")
-    elseif endFrames == 150 then
+    elseif endFrames == 450 then
         local visibleSprites = 0
         local distinctMovementLegTiles = 0
 
@@ -122,7 +162,7 @@ emu.addEventCallback(function()
             samples.moveDownLeft.x, samples.moveDownLeft.y,
             samples.idleLeft.x, samples.idleLeft.y))
 
-        check(nmis >= 120, "NMI did not execute on every observed frame")
+        check(nmis >= 440, "NMI did not execute on every observed frame")
         check(controllerWrites >= (nmis - 3) * 2 and controllerWrites <= nmis * 2,
             "controller polling was not synchronized to one update per frame")
 
@@ -131,8 +171,9 @@ emu.addEventCallback(function()
                 visibleSprites = visibleSprites + 1
             end
         end
-        check(visibleSprites == 7 or visibleSprites == 9,
-            "current OAM does not contain the player plus an optional sword")
+        check(visibleSprites == 7 + (swordVisible and 2 or 0) +
+                                   currentBatCount * 2,
+            "current OAM does not match player, animated sword and Bat count")
         for sprite = visibleSprites, 63 do
             check(oam(sprite * 4) == 0xFF,
                 string.format("unused OAM sprite %d was not hidden", sprite))
@@ -149,6 +190,24 @@ emu.addEventCallback(function()
         end
         check(sawSwordRight, "sword was never rendered facing right")
         check(sawSwordLeft, "sword was never rendered facing left")
+        check(#batAppearances >= 2,
+            "two Bat spawn events were not observed")
+        if #batAppearances >= 2 then
+            check(batAppearances[1] >= 180 and batAppearances[1] <= 185,
+                "first Bat did not appear after the three-second delay")
+            check(batAppearances[2] - batAppearances[1] == 240,
+                "Bat spawn interval was not exactly four seconds")
+        end
+        check(firstBatSample ~= nil and laterBatSample ~= nil,
+            "first Bat could not be sampled while pursuing the player")
+        if firstBatSample ~= nil and laterBatSample ~= nil then
+            check(firstBatSample.x ~= laterBatSample.x or
+                  firstBatSample.y ~= laterBatSample.y,
+                "first Bat did not move toward the player")
+            check((firstBatSample.tile == 0x0A or firstBatSample.tile == 0x0C) and
+                  (laterBatSample.tile == 0x0A or laterBatSample.tile == 0x0C),
+                "Bat did not animate with attached CHR tiles")
+        end
 
         check(samples.idleRight.x == 124 and samples.idleRight.y == 107,
             "player did not begin centered at the expected logical anchor")
@@ -185,7 +244,7 @@ emu.addEventCallback(function()
 
         local expectedSpritePalette = {
             [0x10] = 0x0F, [0x11] = 0x00, [0x12] = 0x10, [0x13] = 0x37,
-            [0x14] = 0x0F, [0x15] = 0x06, [0x16] = 0x16, [0x17] = 0x26,
+            [0x14] = 0x0F, [0x15] = 0x08, [0x16] = 0x19, [0x17] = 0x06,
             [0x18] = 0x0F, [0x19] = 0x09, [0x1A] = 0x19, [0x1B] = 0x29,
             [0x1C] = 0x0F, [0x1D] = 0x03, [0x1E] = 0x13, [0x1F] = 0x23,
         }
@@ -210,7 +269,7 @@ emu.addEventCallback(function()
 
         if #failures == 0 then
             local message = string.format(
-                "Player runtime validation passed: %d frames, %d NMIs, %d controller writes",
+                "Player/sword/Bat validation passed: %d frames, %d NMIs, %d controller writes",
                 endFrames, nmis, controllerWrites)
             print(message)
             emu.log(message)

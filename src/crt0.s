@@ -139,8 +139,8 @@ DMCFREQ   = $4010
     dex
     bne @clear_palette
 
-    ; Load the exact 16-byte png2chr-studio sprite palette at $3F10-$3F1F.
-    ; This remains bounded startup work while rendering and NMI are disabled.
+    ; Load the 16-byte sprite palette at $3F10-$3F1F. Palette 0 belongs to
+    ; Soldier/sword and palette 1 contains the colors exported with the bat.
     lda PPUSTATUS
     lda #$3F
     sta PPUADDR
@@ -158,7 +158,7 @@ DMCFREQ   = $4010
 
 soldier_sprite_palette:
     .byte $0F, $00, $10, $37
-    .byte $0F, $06, $16, $26
+    .byte $0F, $08, $19, $06
     .byte $0F, $09, $19, $29
     .byte $0F, $03, $13, $23
 

@@ -33,4 +33,17 @@
 #define SWORD_WIDTH_PIXELS             8U
 #define SWORD_VERTICAL_OFFSET_PIXELS   4U
 
+/* Bat positions use unsigned Q12.4 fixed point (1 pixel = 16 subpixels). */
+#define BAT_POSITION_SUBPIXELS_PER_PIXEL 16U
+#define MAX_ACTIVE_ENEMIES             12U
+#define BAT_WIDTH_PIXELS                16U
+#define BAT_HEIGHT_PIXELS                8U
+#define BAT_MOVEMENT_SPEED_SUBPIXELS    6U /* 0.75 pixels per axis/frame */
+#define BAT_INITIAL_SPAWN_DELAY_FRAMES 120U /* 2 seconds at 60 Hz */
+#define BAT_SPAWN_INTERVAL_FRAMES      120U /* 2 seconds at 60 Hz */
+#define BAT_MIN_X                        0U
+#define BAT_MAX_X                      240U
+#define BAT_MIN_Y                        1U
+#define BAT_MAX_Y                      232U
+
 #endif

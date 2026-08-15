@@ -10,7 +10,7 @@
   controller-port read routine.
 - `src/main.c` orchestrates initialization and the synchronized main loop.
 - `src/game.c` owns the explicit `BOOT` to `RUNNING` transition and orchestrates
-  the player update plus deterministic OAM reconstruction.
+  player, sword, enemy collision and deterministic OAM reconstruction.
 - `src/input.c` derives current, pressed and released button masks from the raw
   hardware sample.
 - `src/rng.c` implements deterministic `xorshift16` state and output functions.
@@ -28,9 +28,14 @@
   offsets and names changed.
 - `src/weapon_sword.c` owns the two-byte automatic-sword runtime and the exact
   two-tile generated attack frame. It renders after the player, in front of the
-  remembered horizontal facing, and omits fully offscreen attacks at arena edges.
-- `include/tuning.h` contains the player start, speed, logical 24x24 bounds and
-  initial architectural capacities.
+  remembered horizontal facing, exposes the matching active hitbox, and omits
+  fully offscreen attacks at arena edges.
+- `src/enemy.c` owns the fixed 12-slot Bat pool, edge spawning, Q12.4 pursuit,
+  animation cursors, sword collision and deterministic enemy rendering.
+- `src/bat_animation_data.c` adapts the attached generated Bat frames and tiles
+  to the shared immutable animation format.
+- `include/tuning.h` contains player/sword/Bat geometry, speeds, attack and spawn
+  timing, arena bounds and fixed gameplay capacities.
 
 ## Player and Soldier naming boundary
 
@@ -46,13 +51,12 @@ it is a reusable animation playback cursor, not the playable character identity.
 integration point that selects Soldier definitions and mirrors the current
 metasprite when the facing direction is left.
 
-The 8 KiB `assets/game.chr` bank is linked through `src/chr.s`. Soldier sprites
-use pattern table `$0000`, matching generated tile indexes `$00-$07`; the sword
-uses generated indexes `$08-$09` in the same table.
+The attached 8 KiB `assets/game.chr` bank is linked through `src/chr.s`. Soldier
+uses `$00-$07`, the animated sword `$08-$09`, and Bat `$0A-$0D` in sprite pattern
+table `$0000`.
 Backgrounds use `$1000`, whose tile zero is blank, so a cleared nametable remains
-black. Startup loads the 16-byte Soldier sprite palette into `$3F10-$3F1F` from
-the `soldier_sprite_palette` constant while rendering and NMI are disabled;
-Soldier's metasprite records select sprite palette 0.
+black. Startup loads the sprite palettes while rendering and NMI are disabled.
+Soldier and sword select palette 0; Bat selects its attached colors in palette 1.
 
 ## C and Assembly boundary
 
@@ -79,10 +83,9 @@ not by itself a reason to move it into Assembly.
 4. `nes_wait_frame` snapshots the counter and waits until NMI changes it. An
    8-bit comparison is atomic on 6502; wraparound is safe because 256 NMIs cannot
    occur between the snapshot and comparison.
-5. The main loop reads controller 1, updates player policy, animation and the
-   automatic sword timers, hides old OAM entries, then emits the seven-sprite
-   player followed by the optional two-sprite sword. This work is outside NMI
-   and completes immediately after frame synchronization.
+5. The main loop updates player, automatic sword and Bat pursuit, applies the
+   sword hitbox only during active attack frames, then rebuilds OAM in player,
+   optional sword and stable enemy-pool order. Work remains outside NMI.
 
 Because OAM DMA runs before that main-loop reconstruction, a newly built shadow
 becomes visible at the following NMI. Runtime tests therefore sample movement
@@ -103,12 +106,29 @@ player integration keeps the same 24-pixel anchor for both facings and mirrors
 the current metasprite at render time when the Soldier faces left, so there is
 no separate movement-left anchor shift.
 
-The sword attacks at a fixed 60-frame period and is visible for the first 12
+The sword attacks at a fixed 60-frame period and is active for the first 12
 frames of each period. Its 8x16 frame is vertically centered against the
 player's 24-pixel logical area, anchored at `player.x + 24` when facing right or
 `player.x - 8` when facing left, and horizontally flipped for left facing. A
 fully offscreen sword is skipped instead of allowing unsigned OAM coordinates
-to wrap it to the opposite screen edge. There is no hitbox or damage yet.
+to wrap it to the opposite screen edge. Its 8x16 hitbox uses the exact same
+active-state, anchor and edge rules as rendering; overlapping Bats are removed.
+
+## Bat pool and spawning
+
+The first Bat is due after 180 gameplay frames. Successful later spawns reset
+the timer to 240 frames (four seconds). Positions use deterministic gameplay RNG
+and one of four arena edges. If all 12 slots are active, the due spawn retries on
+a later frame rather than overwriting memory.
+
+Bat coordinates use Q12.4 fixed point and move 12 subpixels (0.75 pixel) per axis
+per update toward a center-aligned player target. This is below the player's
+16-subpixel step and follows the existing unnormalized diagonal convention. A
+shrinking high-water mark keeps loop cost proportional to used pool slots.
+
+Collision compares each active Bat's 16x8 AABB against the animated sword's 8x16
+AABB only during an active attack frame. A hit clears the slot immediately. HP,
+player damage and XP drops are not part of this milestone.
 
 ## Animation data and reuse
 

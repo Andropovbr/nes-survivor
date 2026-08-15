@@ -42,6 +42,22 @@ uint8_t weapon_sword_render(OamRenderer *renderer,
                             uint8_t player_y,
                             uint8_t facing_left)
 {
+    WeaponSwordHitbox hitbox;
+
+    if (weapon_sword_hitbox(&hitbox, player_x, player_y, facing_left) == 0U) {
+        return 0U;
+    }
+
+    return oam_renderer_draw_metasprite(
+        renderer, hitbox.x, hitbox.y, sword_attack_tiles,
+        SWORD_ATTACK_SPRITE_COUNT, hitbox.width, facing_left);
+}
+
+uint8_t weapon_sword_hitbox(WeaponSwordHitbox *hitbox,
+                            uint8_t player_x,
+                            uint8_t player_y,
+                            uint8_t facing_left)
+{
     int16_t anchor_x;
 
     if (sword.active_frames == 0U) {
@@ -60,10 +76,11 @@ uint8_t weapon_sword_render(OamRenderer *renderer,
         }
     }
 
-    return oam_renderer_draw_metasprite(
-        renderer, anchor_x, (int16_t)(player_y + SWORD_VERTICAL_OFFSET_PIXELS),
-        sword_attack_tiles, SWORD_ATTACK_SPRITE_COUNT, SWORD_WIDTH_PIXELS,
-        facing_left);
+    hitbox->x = anchor_x;
+    hitbox->y = (int16_t)(player_y + SWORD_VERTICAL_OFFSET_PIXELS);
+    hitbox->width = SWORD_WIDTH_PIXELS;
+    hitbox->height = (uint8_t)(SWORD_ATTACK_SPRITE_COUNT * 8U);
+    return 1U;
 }
 
 uint8_t weapon_sword_is_attacking(void)

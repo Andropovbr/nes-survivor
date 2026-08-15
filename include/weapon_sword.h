@@ -5,9 +5,20 @@
 
 #include "metasprite.h"
 
+typedef struct {
+    int16_t x;
+    int16_t y;
+    uint8_t width;
+    uint8_t height;
+} WeaponSwordHitbox;
+
 void weapon_sword_init(void);
 void weapon_sword_update(void);
 uint8_t weapon_sword_render(OamRenderer *renderer,
+                            uint8_t player_x,
+                            uint8_t player_y,
+                            uint8_t facing_left);
+uint8_t weapon_sword_hitbox(WeaponSwordHitbox *hitbox,
                             uint8_t player_x,
                             uint8_t player_y,
                             uint8_t facing_left);

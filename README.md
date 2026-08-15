@@ -16,8 +16,10 @@ signed metasprite offsets, tile indexes and OAM attributes come from the
 consolidated png2chr-studio data.
 
 Soldier automatically swings a sword in front of the current facing direction
-once every 60 frames. The generated sword frame remains visible for 12 frames;
-the weapon is visual only until enemy and collision systems are introduced.
+once every 60 frames. The generated sword is active for 12 frames and removes
+Bats that overlap its hitbox. Bats first appear from an arena edge after three
+seconds, then every four seconds, and pursue the player at 0.75 pixel per axis
+per frame.
 
 The NROM foundation still performs bounded OAM DMA in NMI and runs controller,
 player, animation and OAM construction logic in the synchronized C main loop.
@@ -45,7 +47,7 @@ make clean
 The ROM is generated at `build/nes-survivor.nes`; the linker map and labels are
 generated beside it. `make test` executes the C logic tests through cc65's
 `sim65` and validates the built iNES cartridge with Python.
-`make test-runtime` is optional and runs the ROM for 150 frames with Mesen 2's
+`make test-runtime` is optional and runs the ROM for 450 frames with Mesen 2's
 headless Lua test runner.
 
 On Windows, `make` uses `python` for portable build-directory creation and
@@ -82,11 +84,11 @@ attacks automatically and requires no button.
 - NTSC timing assumption (60 frames per second)
 - one fixed screen with scrolling held at zero
 - no audio and no PAL/Dendy timing adaptation yet
-- one player character and one visual sword weapon; no damage, enemies, waves,
-  HUD or collision yet
+- one player character, one automatic sword and one enemy type; no player
+  damage, XP, wave transitions, HUD or progression yet
 - diagonals intentionally use the full one-pixel speed on both axes
-- no sprite-flicker rotation is needed yet; the player consumes 7 OAM slots and
-  the sword consumes 2 more while visible
+- player and active sword consume 9 OAM slots; 12 Bats raise the worst case to
+  33/64, and overlapping Bats may flicker due to the scanline sprite limit
 
 Architecture and frame details are in [docs/architecture.md](docs/architecture.md).
 Measured memory usage is in [docs/memory-map.md](docs/memory-map.md).

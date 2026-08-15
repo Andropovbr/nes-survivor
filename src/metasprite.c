@@ -22,6 +22,26 @@ void oam_renderer_begin(OamRenderer *renderer)
     } while (sprite_count != 0U);
 }
 
+uint8_t oam_renderer_draw_sprite(OamRenderer *renderer,
+                                 uint8_t x,
+                                 uint8_t y,
+                                 uint8_t tile,
+                                 uint8_t attributes)
+{
+    uint8_t offset;
+
+    if (renderer->next_sprite >= NES_OAM_SPRITE_CAPACITY) {
+        return 0U;
+    }
+    offset = (uint8_t)(renderer->next_sprite * OAM_BYTES_PER_SPRITE);
+    oam_shadow[offset + OAM_Y_OFFSET] = (uint8_t)(y - 1U);
+    oam_shadow[offset + OAM_TILE_OFFSET] = tile;
+    oam_shadow[offset + OAM_ATTRIBUTE_OFFSET] = attributes;
+    oam_shadow[offset + OAM_X_OFFSET] = x;
+    ++renderer->next_sprite;
+    return 1U;
+}
+
 uint8_t oam_renderer_draw_metasprite(OamRenderer *renderer,
                                      int16_t anchor_x,
                                      int16_t anchor_y,
