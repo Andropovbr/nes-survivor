@@ -26,6 +26,9 @@
   idle and walking exports under `soldier` symbols. The 21 tile records, 3
   frames and 2 definitions retain their generated values; only aggregate
   offsets and names changed.
+- `src/weapon_sword.c` owns the two-byte automatic-sword runtime and the exact
+  two-tile generated attack frame. It renders after the player, in front of the
+  remembered horizontal facing, and omits fully offscreen attacks at arena edges.
 - `include/tuning.h` contains the player start, speed, logical 24x24 bounds and
   initial architectural capacities.
 
@@ -44,7 +47,8 @@ integration point that selects Soldier definitions and mirrors the current
 metasprite when the facing direction is left.
 
 The 8 KiB `assets/game.chr` bank is linked through `src/chr.s`. Soldier sprites
-use pattern table `$0000`, matching generated tile indexes `$00-$07`.
+use pattern table `$0000`, matching generated tile indexes `$00-$07`; the sword
+uses generated indexes `$08-$09` in the same table.
 Backgrounds use `$1000`, whose tile zero is blank, so a cleared nametable remains
 black. Startup loads the 16-byte Soldier sprite palette into `$3F10-$3F1F` from
 the `soldier_sprite_palette` constant while rendering and NMI are disabled;
@@ -75,9 +79,10 @@ not by itself a reason to move it into Assembly.
 4. `nes_wait_frame` snapshots the counter and waits until NMI changes it. An
    8-bit comparison is atomic on 6502; wraparound is safe because 256 NMIs cannot
    occur between the snapshot and comparison.
-5. The main loop reads controller 1, updates player policy and animation, hides
-   old OAM entries, then emits the current seven-sprite metasprite. This work is
-   outside NMI and completes immediately after frame synchronization.
+5. The main loop reads controller 1, updates player policy, animation and the
+   automatic sword timers, hides old OAM entries, then emits the seven-sprite
+   player followed by the optional two-sprite sword. This work is outside NMI
+   and completes immediately after frame synchronization.
 
 Because OAM DMA runs before that main-loop reconstruction, a newly built shadow
 becomes visible at the following NMI. Runtime tests therefore sample movement
@@ -97,6 +102,13 @@ area is 3x3 tiles because transparent tiles were omitted by the exporter. The
 player integration keeps the same 24-pixel anchor for both facings and mirrors
 the current metasprite at render time when the Soldier faces left, so there is
 no separate movement-left anchor shift.
+
+The sword attacks at a fixed 60-frame period and is visible for the first 12
+frames of each period. Its 8x16 frame is vertically centered against the
+player's 24-pixel logical area, anchored at `player.x + 24` when facing right or
+`player.x - 8` when facing left, and horizontally flipped for left facing. A
+fully offscreen sword is skipped instead of allowing unsigned OAM coordinates
+to wrap it to the opposite screen edge. There is no hitbox or damage yet.
 
 ## Animation data and reuse
 

@@ -7,6 +7,12 @@ local controllerWrites = 0
 local failures = {}
 local samples = {}
 local movementLegTiles = {}
+local swordAttackStarts = {}
+local swordAttackLengths = {}
+local swordWasVisible = false
+local swordVisibleFrames = 0
+local sawSwordRight = false
+local sawSwordLeft = false
 
 local function check(condition, message)
     if not condition then
@@ -61,6 +67,29 @@ end, emu.eventType.inputPolled)
 emu.addEventCallback(function()
     endFrames = endFrames + 1
 
+    local swordVisible = oam(28) ~= 0xFF and oam(29) == 0x08 and
+        oam(32) ~= 0xFF and oam(33) == 0x09
+    if swordVisible then
+        local playerFacesLeft = (oam(2) & 0x40) ~= 0
+        swordVisibleFrames = swordVisibleFrames + 1
+        if not swordWasVisible then
+            table.insert(swordAttackStarts, endFrames)
+        end
+        if playerFacesLeft then
+            sawSwordLeft = true
+            check(oam(30) == 0x40 and oam(31) == oam(3) - 16,
+                "left-facing sword was not placed in front of the player")
+        else
+            sawSwordRight = true
+            check(oam(30) == 0x00 and oam(31) == oam(3) + 16,
+                "right-facing sword was not placed in front of the player")
+        end
+    elseif swordWasVisible then
+        table.insert(swordAttackLengths, swordVisibleFrames)
+        swordVisibleFrames = 0
+    end
+    swordWasVisible = swordVisible
+
     if endFrames >= 30 and endFrames < 50 then
         -- The simplified idle animation has one frame. Tile 5 is a leg tile
         -- that differs between the two walking frames; the head tile does not.
@@ -79,7 +108,7 @@ emu.addEventCallback(function()
         sample("moveDownLeft")
     elseif endFrames == 125 then
         sample("idleLeft")
-    elseif endFrames == 130 then
+    elseif endFrames == 150 then
         local visibleSprites = 0
         local distinctMovementLegTiles = 0
 
@@ -102,11 +131,24 @@ emu.addEventCallback(function()
                 visibleSprites = visibleSprites + 1
             end
         end
-        check(visibleSprites == 7, "current metasprite does not contain exactly 7 visible sprites")
-        for sprite = 7, 63 do
+        check(visibleSprites == 7 or visibleSprites == 9,
+            "current OAM does not contain the player plus an optional sword")
+        for sprite = visibleSprites, 63 do
             check(oam(sprite * 4) == 0xFF,
                 string.format("unused OAM sprite %d was not hidden", sprite))
         end
+
+        check(#swordAttackStarts >= 3,
+            "automatic sword did not start at least three attacks")
+        for attack = 2, #swordAttackStarts do
+            check(swordAttackStarts[attack] - swordAttackStarts[attack - 1] == 60,
+                "automatic sword attack period was not exactly 60 frames")
+        end
+        for _, length in ipairs(swordAttackLengths) do
+            check(length == 12, "sword attack was not visible for 12 frames")
+        end
+        check(sawSwordRight, "sword was never rendered facing right")
+        check(sawSwordLeft, "sword was never rendered facing left")
 
         check(samples.idleRight.x == 124 and samples.idleRight.y == 107,
             "player did not begin centered at the expected logical anchor")

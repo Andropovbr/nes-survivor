@@ -11,9 +11,13 @@ for hardware startup and bounded low-level work.
 The ROM now boots into a fixed black arena with Soldier, the first playable
 character, centered on screen. The player moves Soldier in all eight D-pad
 directions, remembers the last horizontal facing direction, and uses Soldier's
-generated 6-frame idle and two 8-frame movement sequences. Animation durations,
+generated one-frame idle and two-frame movement animation. Animation durations,
 signed metasprite offsets, tile indexes and OAM attributes come from the
 consolidated png2chr-studio data.
+
+Soldier automatically swings a sword in front of the current facing direction
+once every 60 frames. The generated sword frame remains visible for 12 frames;
+the weapon is visual only until enemy and collision systems are introduced.
 
 The NROM foundation still performs bounded OAM DMA in NMI and runs controller,
 player, animation and OAM construction logic in the synchronized C main loop.
@@ -41,7 +45,7 @@ make clean
 The ROM is generated at `build/nes-survivor.nes`; the linker map and labels are
 generated beside it. `make test` executes the C logic tests through cc65's
 `sim65` and validates the built iNES cartridge with Python.
-`make test-runtime` is optional and runs the ROM for 130 frames with Mesen 2's
+`make test-runtime` is optional and runs the ROM for 150 frames with Mesen 2's
 headless Lua test runner.
 
 On Windows, `make` uses `python` for portable build-directory creation and
@@ -68,7 +72,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/build.ps1 clean
 Controller 1 is sampled every frame. The D-pad moves one pixel per axis per game
 frame, including diagonals. Left and Right update horizontal facing; Up and Down
 alone preserve it. Releasing the D-pad returns to idle while preserving facing.
-A, B, Select and Start are sampled but have no gameplay action yet.
+A, B, Select and Start are sampled but have no gameplay action yet. The sword
+attacks automatically and requires no button.
 
 ## Hardware target and limitations
 
@@ -77,9 +82,11 @@ A, B, Select and Start are sampled but have no gameplay action yet.
 - NTSC timing assumption (60 frames per second)
 - one fixed screen with scrolling held at zero
 - no audio and no PAL/Dendy timing adaptation yet
-- one player character only; no combat, enemies, waves, HUD or collision yet
+- one player character and one visual sword weapon; no damage, enemies, waves,
+  HUD or collision yet
 - diagonals intentionally use the full one-pixel speed on both axes
-- no sprite-flicker rotation is needed yet; the player consumes 7 of 64 OAM slots
+- no sprite-flicker rotation is needed yet; the player consumes 7 OAM slots and
+  the sword consumes 2 more while visible
 
 Architecture and frame details are in [docs/architecture.md](docs/architecture.md).
 Measured memory usage is in [docs/memory-map.md](docs/memory-map.md).

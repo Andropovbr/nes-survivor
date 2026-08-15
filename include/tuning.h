@@ -26,4 +26,11 @@
 #define PLAYER_MIN_Y            1U
 #define PLAYER_MAX_Y          216U
 
+/* Automatic sword: attack starts once per second on the 60 Hz NTSC target. */
+#define SWORD_ATTACK_COOLDOWN_FRAMES 60U
+#define SWORD_ATTACK_ACTIVE_FRAMES   12U
+#define SWORD_ATTACK_SPRITE_COUNT     2U
+#define SWORD_WIDTH_PIXELS             8U
+#define SWORD_VERTICAL_OFFSET_PIXELS   4U
+
 #endif

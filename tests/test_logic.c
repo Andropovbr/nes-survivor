@@ -7,6 +7,7 @@
 #include "rng.h"
 #include "soldier_animation_data.h"
 #include "tuning.h"
+#include "weapon_sword.h"
 
 #if MAX_EQUIPPED_WEAPONS != 4U
 #error "unexpected initial weapon capacity"
@@ -216,6 +217,75 @@ static void test_metasprite_rendering_and_idle_flip(void)
     CHECK(oam_shadow[7] == player_x());
 }
 
+static void test_automatic_sword_attack_and_rendering(void)
+{
+    OamRenderer renderer;
+    uint8_t updates;
+
+    player_init();
+    weapon_sword_init();
+    CHECK(weapon_sword_is_attacking() == 0U);
+
+    weapon_sword_update();
+    CHECK(weapon_sword_is_attacking() == 1U);
+    CHECK(weapon_sword_active_frames() == SWORD_ATTACK_ACTIVE_FRAMES);
+    CHECK(weapon_sword_frames_until_attack() ==
+          (uint8_t)(SWORD_ATTACK_COOLDOWN_FRAMES - 1U));
+
+    oam_renderer_begin(&renderer);
+    player_render(&renderer);
+    CHECK(weapon_sword_render(&renderer, player_x(), player_y(), 0U) == 2U);
+    CHECK(renderer.next_sprite == 9U);
+    CHECK(oam_shadow[28] ==
+          (uint8_t)(PLAYER_INITIAL_Y + SWORD_VERTICAL_OFFSET_PIXELS - 1U));
+    CHECK(oam_shadow[29] == 0x08U);
+    CHECK(oam_shadow[30] == 0x00U);
+    CHECK(oam_shadow[31] == (uint8_t)(PLAYER_INITIAL_X + PLAYER_WIDTH_PIXELS));
+    CHECK(oam_shadow[33] == 0x09U);
+
+    for (updates = 0U; updates < (SWORD_ATTACK_ACTIVE_FRAMES - 1U);
+         ++updates) {
+        weapon_sword_update();
+    }
+    CHECK(weapon_sword_active_frames() == 1U);
+    weapon_sword_update();
+    CHECK(weapon_sword_is_attacking() == 0U);
+
+    for (updates = SWORD_ATTACK_ACTIVE_FRAMES;
+         updates < SWORD_ATTACK_COOLDOWN_FRAMES; ++updates) {
+        weapon_sword_update();
+    }
+    CHECK(weapon_sword_is_attacking() == 1U);
+    CHECK(weapon_sword_active_frames() == SWORD_ATTACK_ACTIVE_FRAMES);
+
+    player_update(BUTTON_LEFT);
+    oam_renderer_begin(&renderer);
+    player_render(&renderer);
+    CHECK(weapon_sword_render(&renderer, player_x(), player_y(), 1U) == 2U);
+    CHECK(oam_shadow[30] == NES_SPRITE_FLIP_HORIZONTAL);
+    CHECK(oam_shadow[31] == (uint8_t)(player_x() - SWORD_WIDTH_PIXELS));
+}
+
+static void test_sword_screen_edges_and_oam_saturation(void)
+{
+    OamRenderer renderer;
+
+    weapon_sword_init();
+    weapon_sword_update();
+
+    oam_renderer_begin(&renderer);
+    CHECK(weapon_sword_render(&renderer, 0U, PLAYER_INITIAL_Y, 1U) == 0U);
+    CHECK(renderer.next_sprite == 0U);
+    CHECK(weapon_sword_render(&renderer, PLAYER_MAX_X, PLAYER_INITIAL_Y, 0U) ==
+          0U);
+    CHECK(renderer.next_sprite == 0U);
+
+    renderer.next_sprite = (uint8_t)(NES_OAM_SPRITE_CAPACITY - 1U);
+    CHECK(weapon_sword_render(&renderer, PLAYER_INITIAL_X, PLAYER_INITIAL_Y,
+                              0U) == 1U);
+    CHECK(renderer.next_sprite == NES_OAM_SPRITE_CAPACITY);
+}
+
 int main(void)
 {
     test_rng();
@@ -224,5 +294,7 @@ int main(void)
     test_player_diagonal_and_bounds();
     test_animation_duration_and_loop();
     test_metasprite_rendering_and_idle_flip();
+    test_automatic_sword_attack_and_rendering();
+    test_sword_screen_edges_and_oam_saturation();
     return failures;
 }
