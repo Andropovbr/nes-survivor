@@ -6,7 +6,9 @@ O NES Survivor é um jogo de ação no estilo survivor em arena fixa, projetado 
 
 ## Status atual
 
-A ROM agora inicializa em uma arena preta fixa com o Soldier, o primeiro personagem jogável, centralizado na tela. O jogador movimenta o Soldier em todas as oito direções do D-pad, mantém a última direção horizontal para a qual estava virado e utiliza as sequências geradas de animação do Soldier: 6 frames para idle e duas sequências de 8 frames para movimento. As durações das animações, offsets com sinal de metasprites, índices de tiles e atributos de OAM são provenientes dos dados consolidados do png2chr-studio.
+A ROM agora inicializa em uma arena preta fixa com o Soldier, o primeiro personagem jogável, centralizado na tela. O jogador movimenta o Soldier em todas as oito direções do D-pad, mantém a última direção horizontal para a qual estava virado e utiliza uma animação gerada de um frame para idle e dois frames para movimento. As durações das animações, offsets com sinal de metasprites, índices de tiles e atributos de OAM são provenientes dos dados consolidados do png2chr-studio.
+
+O Soldier ataca automaticamente com uma espada à frente da direção para a qual está olhando, uma vez a cada 60 frames. O frame gerado da espada permanece visível por 12 frames; a arma é apenas visual até a introdução dos sistemas de inimigos e colisão.
 
 A base NROM continua realizando DMA de OAM delimitado na NMI e executa a lógica de controle, jogador, animação e construção de OAM no loop principal sincronizado em C. O módulo `player` representa qualquer personagem que o controle 1 assuma; símbolos concretos de gráficos e animação possuem o prefixo `soldier`.
 
@@ -28,7 +30,7 @@ make test-runtime
 make clean
 ```
 
-A ROM é gerada em `build/nes-survivor.nes`; o mapa do linker e os labels são gerados ao lado dela. `make test` executa os testes de lógica em C através do `sim65` do cc65 e valida o cartucho iNES gerado com Python. `make test-runtime` é opcional e executa a ROM por 130 frames com o executor de testes Lua headless do Mesen 2.
+A ROM é gerada em `build/nes-survivor.nes`; o mapa do linker e os labels são gerados ao lado dela. `make test` executa os testes de lógica em C através do `sim65` do cc65 e valida o cartucho iNES gerado com Python. `make test-runtime` é opcional e executa a ROM por 150 frames com o executor de testes Lua headless do Mesen 2.
 
 No Windows, o `make` usa `python` para criar e limpar o diretório de build de
 forma portável. Em sistemas Unix-like, utiliza `python3`. Sobrescreva `PYTHON`
@@ -51,7 +53,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/build.ps1 clean
 
 ## Controles
 
-O controle 1 é lido a cada frame. O D-pad movimenta um pixel por eixo por frame de jogo, incluindo diagonais. Esquerda e Direita atualizam a orientação horizontal; Cima e Baixo isolados a preservam. Soltar o D-pad retorna ao estado idle preservando a orientação. A, B, Select e Start são lidos, mas ainda não realizam nenhuma ação de gameplay.
+O controle 1 é lido a cada frame. O D-pad movimenta um pixel por eixo por frame de jogo, incluindo diagonais. Esquerda e Direita atualizam a orientação horizontal; Cima e Baixo isolados a preservam. Soltar o D-pad retorna ao estado idle preservando a orientação. A espada ataca automaticamente e não exige botão. A, B, Select e Start são lidos, mas ainda não realizam nenhuma ação de gameplay.
 
 ## Plataforma alvo e limitações de hardware
 
@@ -60,9 +62,9 @@ O controle 1 é lido a cada frame. O D-pad movimenta um pixel por eixo por frame
 - Premissa de temporização NTSC (60 frames por segundo)
 - Uma tela fixa com scrolling travado em zero
 - Sem áudio e sem adaptação de temporização para PAL/Dendy no momento
-- Apenas um personagem do jogador; sem combate, inimigos, ondas (waves), HUD ou colisão no momento
+- Apenas um personagem e uma arma de espada visual; sem dano, inimigos, ondas (waves), HUD ou colisão no momento
 - As diagonais intencionalmente utilizam a velocidade total de um pixel em ambos os eixos
-- Não é necessária rotação para sprite flicker no momento; o jogador consome 7 dos 64 slots de OAM
+- Não é necessária rotação para sprite flicker no momento; o jogador consome 7 slots de OAM e a espada utiliza mais 2 enquanto está visível
 
 Os detalhes de arquitetura e frames estão em [docs/pt-BR/architecture.md](docs/pt-BR/architecture.md).
 O uso de memória medido está em [docs/pt-BR/memory-map.md](docs/pt-BR/memory-map.md).
