@@ -17,9 +17,9 @@ consolidated png2chr-studio data.
 
 Soldier automatically swings a sword in front of the current facing direction
 once every 60 frames. The generated sword is active for 12 frames and removes
-Bats that overlap its hitbox. Bats first appear from an arena edge after three
-seconds, then every four seconds, and pursue the player at 0.75 pixel per axis
-per frame.
+Bats that overlap its hitbox. Bats first appear from an arena edge after two
+seconds, then every two seconds, and pursue the player at an average 0.375 pixel
+per axis per frame.
 
 The NROM foundation still performs bounded OAM DMA in NMI and runs controller,
 player, animation and OAM construction logic in the synchronized C main loop.
@@ -41,6 +41,7 @@ No tool path is hard-coded. The build uses the executables available on `PATH`.
 make
 make test
 make test-runtime
+make test-performance
 make clean
 ```
 
@@ -48,7 +49,8 @@ The ROM is generated at `build/nes-survivor.nes`; the linker map and labels are
 generated beside it. `make test` executes the C logic tests through cc65's
 `sim65` and validates the built iNES cartridge with Python.
 `make test-runtime` is optional and runs the ROM for 450 frames with Mesen 2's
-headless Lua test runner.
+headless Lua test runner. `make test-performance` runs a 1,700-frame stress test,
+fills all 12 Bat slots and fails if the gameplay loop misses an NMI.
 
 On Windows, `make` uses `python` for portable build-directory creation and
 cleanup. On Unix-like hosts it uses `python3`. Override `PYTHON` or `MESEN` only
@@ -64,6 +66,7 @@ On Windows systems without GNU Make, the equivalent checked workflow is:
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/build.ps1 build
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/build.ps1 test
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/build.ps1 runtime
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/build.ps1 performance
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/build.ps1 clean
 ```
 

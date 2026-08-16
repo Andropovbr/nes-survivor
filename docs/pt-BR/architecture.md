@@ -14,7 +14,7 @@
 - `src/metasprite.c` oculta entradas não utilizadas da OAM e expande registros de tiles relativos com sinal para a shadow de OAM existente. Seu espelhamento horizontal opcional ajusta tanto a geometria quanto o bit de inversão (flip) de hardware.
 - `src/soldier_animation_data.c` consolida as exportações de idle e caminhada do Soldier geradas separadamente sob os símbolos `soldier`. Os 21 registros de tiles, 3 frames e 2 definições mantêm seus valores gerados; apenas os offsets agregados e nomes foram alterados.
 - `src/weapon_sword.c` mantém os dois bytes de estado da espada automática e o frame gerado exato de dois tiles. A espada é renderizada depois do jogador, expõe a hitbox ativa correspondente e omite ataques totalmente fora da tela.
-- `src/enemy.c` gerencia o pool fixo de 12 Bats, spawn nas bordas, perseguição Q12.4, animação, colisão com espada e renderização determinística.
+- `src/enemy.c` gerencia o pool fixo de 12 Bats, spawn nas bordas, temporização Q4 compartilhada de perseguição e animação, colisão com espada e renderização determinística.
 - `src/bat_animation_data.c` adapta os frames e tiles anexados do Bat ao formato imutável compartilhado.
 - `include/tuning.h` contém geometria e velocidade de player/espada/Bat, tempos de ataque e spawn, limites da arena e capacidades fixas.
 
@@ -48,17 +48,19 @@ atualização extra de gameplay.
 
 O layout de bits do controle é A, B, Select, Start, Up, Down, Left e Right nos bits 7 a 0. O DMC está desabilitado, portanto o DMA não corrompe a leitura serial do controle. Direções opostas em um mesmo eixo se anulam naquele eixo. Um movimento puramente vertical seleciona a animação de movimento de acordo com a orientação horizontal lembrada. As diagonais atualizam ambos os eixos sem normalização.
 
-O comportamento da OAM é determinístico: todas as 64 entradas são enviadas por DMA a cada NMI; a construção começa ocultando todas as entradas e, em seguida, as chamadas de renderização por ordem de chegada recebem prioridade. O Soldier controlado consome atualmente sete entradas, embora sua área lógica seja de 3x3 tiles, pois os tiles transparentes foram omitidos pelo exportador. A integração do player mantém a mesma âncora de 24 pixels para ambas as orientações e espelha o metasprite atual no momento da renderização quando o Soldier olha para a esquerda, portanto não existe mais um deslocamento separado para movimento à esquerda.
+O comportamento da OAM é determinístico: todas as 64 entradas são enviadas por DMA a cada NMI. A inicialização oculta todas as entradas uma vez; cada construção seguinte oculta somente as entradas usadas no frame anterior e, em seguida, as chamadas de renderização por ordem de chegada recebem prioridade. O Soldier controlado consome atualmente sete entradas, embora sua área lógica seja de 3x3 tiles, pois os tiles transparentes foram omitidos pelo exportador. A integração do player mantém a mesma âncora de 24 pixels para ambas as orientações e espelha o metasprite atual no momento da renderização quando o Soldier olha para a esquerda, portanto não existe mais um deslocamento separado para movimento à esquerda.
 
 A espada ataca em um período fixo de 60 frames e permanece ativa nos primeiros 12 frames de cada período. Seu frame de 8x16 é centralizado verticalmente na área lógica de 24 pixels do jogador, ancorado em `player.x + 24` ao olhar para a direita ou `player.x - 8` ao olhar para a esquerda, e invertido horizontalmente para a esquerda. Uma espada completamente fora da tela é omitida para evitar que coordenadas OAM sem sinal a façam reaparecer na borda oposta. Sua hitbox usa o mesmo estado ativo, âncora e regras de borda; Bats sobrepostos são removidos.
 
 ## Pool de Bats e spawn
 
-O primeiro Bat vence o timer após 180 frames de gameplay. Spawns seguintes bem-sucedidos reiniciam o timer em 240 frames (quatro segundos). As posições usam RNG determinístico e uma das quatro bordas. Com 12 slots ativos, o spawn vencido tenta novamente em outro frame sem sobrescrever memória.
+O primeiro Bat vence o timer após 120 frames de gameplay. Spawns seguintes bem-sucedidos reiniciam o timer em 120 frames (dois segundos). As posições usam RNG determinístico e uma das quatro bordas. Com 12 slots ativos, o spawn vencido tenta novamente em outro frame sem sobrescrever memória.
 
-As coordenadas usam Q12.4 e avançam 12 subpixels (0,75 pixel) por eixo em direção a um alvo centralizado no player. A velocidade fica abaixo dos 16 subpixels do player e segue a convenção diagonal sem normalização. Um limite de varredura que encolhe mantém o custo proporcional aos slots usados.
+As posições usam coordenadas de pixel armazenadas em bytes. Um acumulador Q4 compartilhado avança seis subpixels por atualização e emite um passo de um pixel ao atingir 16 subpixels, preservando a velocidade média de 0,375 pixel por eixo por atualização. A velocidade fica abaixo do passo de um pixel do player e segue a convenção diagonal sem normalização. O estado cosmético da animação também é compartilhado por todos os Bats. Um limite de varredura que encolhe mantém o custo proporcional aos slots usados.
 
 A colisão compara a AABB 16x8 de cada Bat com a AABB 8x16 da espada somente durante um frame ativo do ataque. Um acerto libera o slot imediatamente. HP, dano no player e drops de XP não fazem parte deste marco.
+
+A inspeção da saída do cc65 e dos contadores de frame no Mesen identificou a indexação repetida de structs com 16 bits, o estado de animação por inimigo e as chamadas genéricas de metasprite como caminho crítico. O pool agora usa arrays compactos de bytes, temporização compartilhada e um renderizador limitado aos dois sprites do Bat, ainda em C. Um teste de estresse de 1.700 frames no Mesen alcançou os 12 slots ativos com 1.696 NMIs e 1.696 atualizações de gameplay, portanto não foi necessária nenhuma rotina em Assembly.
 
 ## Dados de animação e reutilização
 

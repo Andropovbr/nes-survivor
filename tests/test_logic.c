@@ -209,7 +209,7 @@ static void test_metasprite_rendering_and_idle_flip(void)
 
     player_init();
     player_update(BUTTON_LEFT);
-    oam_renderer_begin(&renderer);
+    oam_renderer_init(&renderer);
     player_render(&renderer);
     CHECK(player_current_animation() == SOLDIER_ANIMATION_MOVEMENT);
     CHECK(renderer.next_sprite == 7U);
@@ -221,6 +221,9 @@ static void test_metasprite_rendering_and_idle_flip(void)
     CHECK(oam_shadow[7] == player_x());
     player_update(0U);
     oam_renderer_begin(&renderer);
+    CHECK(renderer.next_sprite == 0U);
+    CHECK(oam_shadow[0] == UINT8_C(0xFF));
+    CHECK(oam_shadow[24] == UINT8_C(0xFF));
     player_render(&renderer);
     CHECK(player_current_animation() == SOLDIER_ANIMATION_IDLE);
     CHECK(oam_shadow[2] == NES_SPRITE_FLIP_HORIZONTAL);
@@ -252,7 +255,7 @@ static void test_automatic_sword_attack_and_rendering(void)
     CHECK(hitbox.width == SWORD_WIDTH_PIXELS);
     CHECK(hitbox.height == 16U);
 
-    oam_renderer_begin(&renderer);
+    oam_renderer_init(&renderer);
     player_render(&renderer);
     CHECK(weapon_sword_render(&renderer, player_x(), player_y(), 0U) == 2U);
     CHECK(renderer.next_sprite == 9U);
@@ -289,11 +292,14 @@ static void test_automatic_sword_attack_and_rendering(void)
 
 static void test_enemy_spawn_movement_collision_and_saturation(void)
 {
+    OamRenderer renderer;
     uint16_t update;
     uint8_t before_x;
     uint8_t before_y;
     uint8_t target_x;
     uint8_t target_y;
+    uint8_t movement_remainder;
+    uint8_t expected_movement;
     WeaponSwordHitbox hitbox;
 
     rng_seed(INITIAL_RNG_SEED);
@@ -307,6 +313,15 @@ static void test_enemy_spawn_movement_collision_and_saturation(void)
     CHECK(active_enemy_count() == 1U);
     CHECK(enemy_is_active(0U) != 0U);
 
+    oam_renderer_init(&renderer);
+    enemy_render(&renderer);
+    CHECK(renderer.next_sprite == 2U);
+    CHECK(oam_shadow[0] == (uint8_t)(enemy_y(0U) - 1U));
+    CHECK(oam_shadow[1] == UINT8_C(0x0A));
+    CHECK(oam_shadow[3] == enemy_x(0U));
+    CHECK(oam_shadow[5] == UINT8_C(0x0B));
+    CHECK(oam_shadow[7] == (uint8_t)(enemy_x(0U) + 8U));
+
     for (update = 0U; update < BAT_SPAWN_INTERVAL_FRAMES - 1U; ++update) {
         enemy_update(120U, 100U);
     }
@@ -318,15 +333,22 @@ static void test_enemy_spawn_movement_collision_and_saturation(void)
     before_y = enemy_y(0U);
     target_x = before_x < 120U ? BAT_MAX_X : BAT_MIN_X;
     target_y = before_y < 116U ? BAT_MAX_Y : BAT_MIN_Y;
+    movement_remainder = (uint8_t)(
+        ((BAT_INITIAL_SPAWN_DELAY_FRAMES + BAT_SPAWN_INTERVAL_FRAMES) *
+         BAT_MOVEMENT_SPEED_SUBPIXELS) %
+        BAT_POSITION_SUBPIXELS_PER_PIXEL);
+    expected_movement = (uint8_t)(
+        (movement_remainder + 16U * BAT_MOVEMENT_SPEED_SUBPIXELS) /
+        BAT_POSITION_SUBPIXELS_PER_PIXEL);
     for (update = 0U; update < 16U; ++update) {
         enemy_update(target_x, target_y);
     }
     CHECK(enemy_x(0U) == (uint8_t)(before_x < target_x
-                                        ? before_x + 12U
-                                        : before_x - 12U));
+                                        ? before_x + expected_movement
+                                        : before_x - expected_movement));
     CHECK(enemy_y(0U) == (uint8_t)(before_y < target_y
-                                        ? before_y + 12U
-                                        : before_y - 12U));
+                                        ? before_y + expected_movement
+                                        : before_y - expected_movement));
 
     hitbox.x = enemy_x(0U);
     hitbox.y = enemy_y(0U);
@@ -355,7 +377,7 @@ static void test_sword_screen_edges_and_oam_saturation(void)
     weapon_sword_init();
     weapon_sword_update();
 
-    oam_renderer_begin(&renderer);
+    oam_renderer_init(&renderer);
     CHECK(weapon_sword_render(&renderer, 0U, PLAYER_INITIAL_Y, 1U) == 0U);
     CHECK(renderer.next_sprite == 0U);
     CHECK(weapon_sword_render(&renderer, PLAYER_MAX_X, PLAYER_INITIAL_Y, 0U) ==
