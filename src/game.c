@@ -16,7 +16,7 @@ void game_init(void)
     player_init();
     weapon_sword_init();
     enemy_init();
-    oam_renderer_begin(&oam_renderer);
+    oam_renderer_init(&oam_renderer);
     player_render(&oam_renderer);
     (void)weapon_sword_render(
         &oam_renderer, player_x(), player_y(),

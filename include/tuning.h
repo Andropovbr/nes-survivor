@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-/* Architectural capacities only; no corresponding gameplay exists yet. */
+/* Reserved gameplay/content capacities; active pool limits live with systems. */
 #define MAX_EQUIPPED_WEAPONS    4U
 #define LEVEL_UP_CHOICE_COUNT   3U
 #define MAX_PLAYABLE_CHARACTERS 8U
@@ -33,14 +33,15 @@
 #define SWORD_WIDTH_PIXELS             8U
 #define SWORD_VERTICAL_OFFSET_PIXELS   4U
 
-/* Bat positions use unsigned Q12.4 fixed point (1 pixel = 16 subpixels). */
+/* Bat speed uses Q4 subpixels; one shared accumulator emits pixel steps. */
 #define BAT_POSITION_SUBPIXELS_PER_PIXEL 16U
-#define MAX_ACTIVE_ENEMIES             12U
+#define MAX_ACTIVE_ENEMIES             12U /* fixed runtime pool capacity */
 #define BAT_WIDTH_PIXELS                16U
 #define BAT_HEIGHT_PIXELS                8U
-#define BAT_MOVEMENT_SPEED_SUBPIXELS    6U /* 0.75 pixels per axis/frame */
+#define BAT_MOVEMENT_SPEED_SUBPIXELS    6U /* 0.375 pixels per axis/frame */
 #define BAT_INITIAL_SPAWN_DELAY_FRAMES 120U /* 2 seconds at 60 Hz */
 #define BAT_SPAWN_INTERVAL_FRAMES      120U /* 2 seconds at 60 Hz */
+/* Bat position is its top-left corner; bounds keep the full 16x8 sprite visible. */
 #define BAT_MIN_X                        0U
 #define BAT_MAX_X                      240U
 #define BAT_MIN_Y                        1U

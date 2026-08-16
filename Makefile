@@ -31,7 +31,7 @@ MAP := $(BUILD_DIR)/$(PROJECT).map
 LABELS := $(BUILD_DIR)/$(PROJECT).lbl
 TEST_BIN := $(BUILD_DIR)/test_logic
 
-.PHONY: all clean test test-runtime
+.PHONY: all clean test test-runtime test-performance
 
 all: $(ROM)
 
@@ -68,6 +68,9 @@ test: $(ROM) $(TEST_BIN)
 
 test-runtime: $(ROM)
 	$(MESEN) --testrunner $(ROM) tests/mesen_player.lua
+
+test-performance: $(ROM)
+	$(MESEN) --testrunner $(ROM) tests/mesen_bat_stress.lua
 
 clean:
 	$(PYTHON) tools/build_dir.py clean

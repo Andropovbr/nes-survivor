@@ -30,8 +30,9 @@
   two-tile generated attack frame. It renders after the player, in front of the
   remembered horizontal facing, exposes the matching active hitbox, and omits
   fully offscreen attacks at arena edges.
-- `src/enemy.c` owns the fixed 12-slot Bat pool, edge spawning, Q12.4 pursuit,
-  animation cursors, sword collision and deterministic enemy rendering.
+- `src/enemy.c` owns the fixed 12-slot Bat pool, edge spawning, shared Q4
+  pursuit timing and animation, sword collision and deterministic enemy
+  rendering.
 - `src/bat_animation_data.c` adapts the attached generated Bat frames and tiles
   to the shared immutable animation format.
 - `include/tuning.h` contains player/sword/Bat geometry, speeds, attack and spawn
@@ -98,8 +99,9 @@ read. Opposite directions on one axis cancel on that axis. A pure vertical move
 selects movement according to remembered horizontal facing. Diagonals update
 both axes without normalization.
 
-OAM behavior is deterministic: all 64 entries upload every NMI; construction
-begins by hiding all entries, then first-come render calls receive priority. The
+OAM behavior is deterministic: all 64 entries upload every NMI. Initialization
+hides all entries once; each later construction pass hides only the entries used
+by the preceding frame before first-come render calls receive priority. The
 controlled Soldier currently consumes seven entries even though its logical
 area is 3x3 tiles because transparent tiles were omitted by the exporter. The
 player integration keeps the same 24-pixel anchor for both facings and mirrors
@@ -116,19 +118,28 @@ active-state, anchor and edge rules as rendering; overlapping Bats are removed.
 
 ## Bat pool and spawning
 
-The first Bat is due after 180 gameplay frames. Successful later spawns reset
-the timer to 240 frames (four seconds). Positions use deterministic gameplay RNG
+The first Bat is due after 120 gameplay frames. Successful later spawns reset
+the timer to 120 frames (two seconds). Positions use deterministic gameplay RNG
 and one of four arena edges. If all 12 slots are active, the due spawn retries on
 a later frame rather than overwriting memory.
 
-Bat coordinates use Q12.4 fixed point and move 12 subpixels (0.75 pixel) per axis
-per update toward a center-aligned player target. This is below the player's
-16-subpixel step and follows the existing unnormalized diagonal convention. A
+Bat positions are stored as byte-sized pixel coordinates. A shared Q4 movement
+accumulator advances by six subpixels per update and emits a one-pixel step at
+16 subpixels, preserving an average speed of 0.375 pixel per axis per update.
+This is below the player's one-pixel step and follows the existing unnormalized
+diagonal convention. Cosmetic animation state is also shared by all Bats. A
 shrinking high-water mark keeps loop cost proportional to used pool slots.
 
 Collision compares each active Bat's 16x8 AABB against the animated sword's 8x16
 AABB only during an active attack frame. A hit clears the slot immediately. HP,
 player damage and XP drops are not part of this milestone.
+
+Inspection of cc65 output and Mesen frame counters identified repeated 16-bit
+struct indexing, per-enemy animation state and generic metasprite calls as the
+hot path. The pool now uses compact byte arrays, shared timing and a bounded
+two-sprite Bat renderer in C. A 1,700-frame Mesen stress run reached all 12
+active slots with 1,696 NMIs and 1,696 gameplay updates, so no Assembly routine
+was required.
 
 ## Animation data and reuse
 

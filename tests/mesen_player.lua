@@ -193,10 +193,10 @@ emu.addEventCallback(function()
         check(#batAppearances >= 2,
             "two Bat spawn events were not observed")
         if #batAppearances >= 2 then
-            check(batAppearances[1] >= 180 and batAppearances[1] <= 185,
-                "first Bat did not appear after the three-second delay")
-            check(batAppearances[2] - batAppearances[1] == 240,
-                "Bat spawn interval was not exactly four seconds")
+            check(batAppearances[1] >= 120 and batAppearances[1] <= 125,
+                "first Bat did not appear after the two-second delay")
+            check(batAppearances[2] - batAppearances[1] == 120,
+                "Bat spawn interval was not exactly two seconds")
         end
         check(firstBatSample ~= nil and laterBatSample ~= nil,
             "first Bat could not be sampled while pursuing the player")

@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("build", "clean", "test", "runtime")]
+    [ValidateSet("build", "clean", "test", "runtime", "performance")]
     [string]$Action = "build"
 )
 
@@ -63,10 +63,15 @@ function Run-Tests {
 }
 
 function Run-MesenRuntime {
+    param(
+        [string]$TestScript = "tests/mesen_player.lua",
+        [string]$LogPrefix = "mesen-runtime"
+    )
+
     $mesenPath = (Get-Command "mesen" -ErrorAction Stop).Source
-    $stdout = Join-Path $BuildDir "mesen-runtime.stdout.log"
-    $stderr = Join-Path $BuildDir "mesen-runtime.stderr.log"
-    $arguments = @("--testrunner", "build/nes-survivor.nes", "tests/mesen_player.lua")
+    $stdout = Join-Path $BuildDir "$LogPrefix.stdout.log"
+    $stderr = Join-Path $BuildDir "$LogPrefix.stderr.log"
+    $arguments = @("--testrunner", "build/nes-survivor.nes", $TestScript)
     $process = Start-Process -FilePath $mesenPath -ArgumentList $arguments `
         -WorkingDirectory $ProjectRoot -Wait -PassThru -WindowStyle Hidden `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr
@@ -91,6 +96,10 @@ try {
         "runtime" {
             Build-Rom
             Run-MesenRuntime
+        }
+        "performance" {
+            Build-Rom
+            Run-MesenRuntime "tests/mesen_bat_stress.lua" "mesen-performance"
         }
     }
 }

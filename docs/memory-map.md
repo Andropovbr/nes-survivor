@@ -13,12 +13,12 @@ integrating the animated sword with the first Bat enemy milestone.
 | `$0100-$01FF` | 256 | 6502 hardware stack reservation |
 | `$0200-$02FF` | 256 | page-aligned OAM shadow, 64 sprites x 4 bytes |
 | `$0300-$0324` | 37 | cc65 initialized runtime data |
-| `$0325-$038B` | 103 | C BSS globals |
-| `$038C-$04FF` | 372 | free general RAM |
+| `$0325-$035E` | 58 | C BSS globals |
+| `$035F-$04FF` | 417 | free general RAM |
 | `$0500-$07FF` | 768 | cc65 software parameter stack |
 
-Static/reserved internal RAM is 1,448 of 2,048 bytes, leaving 600 bytes
-unassigned: 228 zero-page bytes and 372 general bytes. Stack ranges are budgets,
+Static/reserved internal RAM is 1,403 of 2,048 bytes, leaving 645 bytes
+unassigned: 228 zero-page bytes and 417 general bytes. Stack ranges are budgets,
 not measured high-water usage.
 
 ## Mutable state and pools
@@ -32,10 +32,11 @@ not measured high-water usage.
 | RNG state | 2 | BSS |
 | player position/facing/movement/playback | 7 | BSS |
 | sword active/cooldown timers | 2 | BSS |
-| Bat pool | 84 | BSS, 12 entries x 7 bytes |
-| Bat spawn timer and high-water mark | 3 | BSS |
+| Bat pool | 36 | BSS, 12 entries x 3 bytes |
+| Bat shared spawn/movement/animation state | 6 | BSS |
 
-Each Bat slot stores Q12.4 X/Y, an active flag, animation frame and frame timer.
+Each Bat slot stores pixel X/Y and an active flag. A shared Q4 accumulator emits
+pixel movement steps, and a shared frame/timer animates all Bats synchronously.
 Allocation reuses the first inactive slot below a shrinking high-water mark.
 When all 12 slots are occupied, a due spawn remains pending and retries later;
 no memory is overwritten and no scheduled Bat is silently discarded.
@@ -53,11 +54,11 @@ and active sword retain priority, but enemy flicker rotation is not implemented.
 | Region | Used content | Capacity | Notes |
 | --- | ---: | ---: | --- |
 | iNES header | 16 bytes | 16 bytes | mapper 0, NROM-256 |
-| PRG-ROM | 5,787 bytes | 32,768 bytes | 17.66%; 26,981 bytes free |
+| PRG-ROM | 5,126 bytes | 32,768 bytes | 15.64%; 27,642 bytes free |
 | CHR-ROM | 224 assigned bytes | 8,192 bytes | tiles `$00-$0D`; 7,968 blank |
 | Total `.nes` file | 40,976 bytes | 40,976 bytes | header + PRG + CHR |
 
-PRG usage includes 220 startup bytes, 12 constructor-startup bytes, 5,349
+PRG usage includes 220 startup bytes, 12 constructor-startup bytes, 4,688
 code/runtime bytes, 163 RODATA bytes, 37 DATA-image bytes and six vector bytes.
 RODATA includes 117 bytes of Soldier animation data, eight sword records and 38
 bytes of Bat animation data.
@@ -69,7 +70,11 @@ animated sword uses `$08-$09`, and Bat uses `$0A-$0D`.
 
 NMI remains bounded to one OAM DMA plus constant bookkeeping, approximately 583
 CPU cycles including interrupt entry. Gameplay, collisions and OAM construction
-run outside NMI. A 450-frame Mesen validation with the animated sword and two Bat
-spawn events observed 446 NMIs after startup and exactly 446 gameplay updates,
-with no skipped synchronized update. A 12-Bat emulator stress run remains future
-validation work.
+run outside NMI. OAM initialization hides all 64 entries once; subsequent frame
+construction hides only entries used by the previous frame.
+
+Before optimization, the 850-frame stress case lost 171 gameplay updates after
+the third Bat. The final 1,700-frame Mesen test saturated all 12 Bat slots and
+observed 1,696 NMIs after startup with exactly 1,696 gameplay updates: no skipped
+synchronized update. Bat animation is shared and rendering uses a measured,
+specialized two-sprite OAM path in C; no Assembly was required.
