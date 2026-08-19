@@ -565,6 +565,337 @@ Use assertions, debug colors, emulator breakpoints, logging hooks, or known memo
 
 Never allow an out-of-bounds write as a normal failure mode.
 
+## Branch change log requirements
+
+Every implementation branch must maintain a human-readable development log under `docs/changes/`.
+
+This log is part of the implementation itself and must be updated whenever a meaningful code change is made.
+
+The goal is to preserve the reasoning behind changes, not merely duplicate the Git diff.
+
+### Directory structure
+
+Use:
+
+```text
+docs/
+  changes/
+    en/
+    pt-BR/
+```
+
+For each branch, maintain one English file and one Brazilian Portuguese file.
+
+Recommended naming:
+
+```text
+docs/changes/en/<branch-name>.md
+docs/changes/pt-BR/<branch-name>.md
+```
+
+Sanitize branch names when necessary so `/` does not create unintended nested directories.
+
+Example:
+
+```text
+feature/enemy-collision
+```
+
+may become:
+
+```text
+docs/changes/en/feature-enemy-collision.md
+docs/changes/pt-BR/feature-enemy-collision.md
+```
+
+### When to update the log
+
+Update the branch log after every meaningful implementation step that would normally justify a commit or push.
+
+Do not create noise for:
+
+* whitespace-only changes;
+* formatting-only changes;
+* temporary debug edits that are removed before completion;
+* generated files;
+* mechanical changes with no technical relevance.
+
+A pushed branch must never contain meaningful source changes without a corresponding log update.
+
+### Required content
+
+Each entry must contain:
+
+1. Date.
+2. Short title.
+3. What changed.
+4. Why the change was needed.
+5. Relevant NES constraint or design consideration.
+6. Main files affected.
+7. Relevant code excerpt.
+8. Explanation of the code excerpt.
+9. Performance impact, when applicable.
+10. RAM / Zero Page / PRG / CHR impact, when applicable.
+11. Tests and validation performed.
+12. Known limitations or follow-up work.
+
+### Code excerpts
+
+Include the smallest useful excerpt that explains the implementation.
+
+Do not dump full files or large diffs.
+
+Prefer focused examples such as:
+
+```c
+for (i = 0; i < MAX_ENEMIES; ++i) {
+    if (!enemy_active[i]) {
+        continue;
+    }
+
+    update_enemy(i);
+}
+```
+
+Then explain:
+
+* what the code does;
+* why this approach was chosen;
+* what NES-specific trade-off exists;
+* whether it affects CPU, RAM, OAM, CHR, NMI, or VBlank budgets.
+
+For Assembly, also mention relevant registers, memory use, and cycle implications when meaningful.
+
+### Before / after excerpts
+
+When a refactor changes an important algorithm or optimization strategy, prefer showing both the relevant old and new forms.
+
+Example:
+
+```text
+Before:
+<small old excerpt>
+
+After:
+<small new excerpt>
+```
+
+Then explain the practical effect.
+
+Do not reproduce large Git diffs.
+
+### Performance documentation
+
+For changes touching a hot path, include measured results whenever reliable measurements are available.
+
+Examples:
+
+```text
+Scenario: 16 active enemies
+
+Before:
+Main loop: 25,420 cycles
+
+After:
+Main loop: 20,180 cycles
+
+Difference:
+-5,240 cycles (-20.6%)
+```
+
+Never invent measurements.
+
+If performance was not measured, explicitly state:
+
+```text
+Performance impact: not measured.
+```
+
+Do not describe an optimization as faster unless measurement or reliable generated-code analysis supports the claim.
+
+### Resource impact
+
+Record resource changes when they are relevant.
+
+Examples:
+
+```text
+PRG-ROM: +94 bytes
+CHR-ROM: unchanged
+RAM: -8 bytes
+Zero Page: unchanged
+Hardware sprites: unchanged
+```
+
+For graphical changes, include useful tile information when available:
+
+```text
+CHR tiles before: 44
+CHR tiles after: 8
+Tiles saved: 36
+```
+
+### Testing and validation
+
+Each entry must document exactly what was run.
+
+Example:
+
+```text
+Validation:
+
+- clean ROM build: PASS
+- host-side tests: PASS
+- CHR validation: PASS
+- performance benchmark: PASS
+- Mesen runtime validation: PASS
+```
+
+Do not claim emulator testing unless the ROM was actually executed in the emulator.
+
+### English and Portuguese synchronization
+
+The English and Brazilian Portuguese logs must describe the same technical changes.
+
+They do not need to be literal translations, but neither version may omit important technical information present in the other.
+
+English remains the canonical repository language for architecture and source documentation.
+
+The Portuguese branch log exists primarily as a development diary and educational reference.
+
+### Suggested entry format
+
+English:
+
+````markdown
+## 2026-08-19 — Optimized enemy sprite construction
+
+### What changed
+
+...
+
+### Why
+
+...
+
+### Relevant code
+
+```c
+...
+````
+
+### How it works
+
+...
+
+### NES considerations
+
+...
+
+### Performance
+
+...
+
+### Resource impact
+
+...
+
+### Validation
+
+...
+
+### Limitations / follow-up
+
+...
+
+````
+
+Portuguese:
+
+```markdown
+## 2026-08-19 — Otimização da montagem dos sprites dos inimigos
+
+### O que mudou
+
+...
+
+### Por que foi necessário
+
+...
+
+### Trecho relevante
+
+```c
+...
+````
+
+### Como funciona
+
+...
+
+### Considerações sobre o NES
+
+...
+
+### Desempenho
+
+...
+
+### Impacto em recursos
+
+...
+
+### Validação
+
+...
+
+### Limitações / próximos passos
+
+...
+
+```
+
+### Relationship with Git history
+
+The branch log complements Git history; it does not replace it.
+
+Git answers:
+
+> What lines changed?
+
+The development log should answer:
+
+> Why did they change, how does the solution work, and what effect did it have on the NES budgets?
+
+Commit messages should remain concise.
+
+Do not paste commit messages into the documentation as a substitute for technical explanation.
+
+### Branch completion
+
+Before declaring a branch complete:
+
+1. Review the complete branch diff against its base branch.
+2. Ensure every meaningful change is represented in the branch log.
+3. Remove obsolete entries describing approaches that were later reverted.
+4. Make sure English and Portuguese logs are synchronized.
+5. Verify code excerpts still match the final implementation.
+6. Add final benchmark and resource numbers when available.
+7. Record tests and emulator validation.
+8. Ensure no speculative or unverified claim remains in the documentation.
+
+The final branch log must describe the final state of the branch, not merely the chronological sequence of experiments.
+
+### CI validation
+
+When practical, CI should verify that meaningful changes to source, assets, linker configuration, or build scripts are accompanied by updates under `docs/changes/`.
+
+This check should initially be advisory rather than blocking if reliable detection cannot be implemented without excessive false positives.
+
+Do not create empty or meaningless documentation changes merely to satisfy CI.
+```
+
+
 ## Build quality
 
 Before finishing any task:
