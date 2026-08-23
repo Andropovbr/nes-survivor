@@ -56,7 +56,9 @@ emu.addEventCallback(function()
         up = false, down = false, left = false, right = false,
     }
 
-    if endFrames >= 30 and endFrames < 50 then
+    if (endFrames >= 10 and endFrames <= 12) or endFrames == 20 then
+        input.start = true
+    elseif endFrames >= 30 and endFrames < 50 then
         input.right = true
     elseif endFrames >= 50 and endFrames < 70 then
         input.up = true
@@ -136,7 +138,7 @@ emu.addEventCallback(function()
         movementLegTiles[oam(21)] = true
     end
 
-    if endFrames == 20 then
+    if endFrames == 28 then
         sample("idleRight")
     elseif endFrames == 51 then
         sample("moveRight")
@@ -162,7 +164,8 @@ emu.addEventCallback(function()
             samples.moveDownLeft.x, samples.moveDownLeft.y,
             samples.idleLeft.x, samples.idleLeft.y))
 
-        check(nmis >= 440, "NMI did not execute on every observed frame")
+        check(nmis >= 430,
+            "NMI count did not account for only the bounded screen transitions")
         check(controllerWrites >= (nmis - 3) * 2 and controllerWrites <= nmis * 2,
             "controller polling was not synchronized to one update per frame")
 
@@ -193,7 +196,7 @@ emu.addEventCallback(function()
         check(#batAppearances >= 2,
             "two Bat spawn events were not observed")
         if #batAppearances >= 2 then
-            check(batAppearances[1] >= 120 and batAppearances[1] <= 125,
+            check(batAppearances[1] >= 140 and batAppearances[1] <= 150,
                 "first Bat did not appear after the two-second delay")
             check(batAppearances[2] - batAppearances[1] == 120,
                 "Bat spawn interval was not exactly two seconds")

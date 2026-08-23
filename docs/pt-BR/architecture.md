@@ -6,7 +6,9 @@
 - `src/nmi.s` é o tratador de NMI delimitado. Ele faz o upload da página shadow de OAM, restaura o scrolling em zero e avança o contador de frames.
 - `src/nes.s` gerencia a alocação de OAM alinhada à página, a primitiva de espera de frame e a rotina de leitura da porta de controle.
 - `src/main.c` orquestra a inicialização e o loop principal sincronizado.
-- `src/game.c` gerencia a transição explícita de `BOOT` para `RUNNING` e orquestra player, espada, colisão com inimigos e reconstrução determinística da OAM.
+- `src/game.c` coordena o ciclo das telas iniciais, inicializa o gameplay somente na entrada de `PLAYING` e então orquestra player, espada, colisão com inimigos e reconstrução determinística da OAM sem custo de despacho no hot path.
+- `src/game_flow.c` mantém os estados explícitos `PRESENTED_BY`, `TITLE` e `PLAYING` e seus timers determinísticos em frames.
+- `src/screen.c` realiza as pequenas escritas de nametable, paleta e texto usadas pelo crédito e pela title screen.
 - `src/input.c` deriva as máscaras de botões atuais, pressionados e soltos a partir da amostragem direta do hardware.
 - `src/rng.c` implementa o estado determinístico de `xorshift16` e suas funções de geração.
 - `src/player.c` gerencia o estado mutável e compacto do jogador, movimentação delimitada em 8 direções, orientação horizontal, seleção de animação e política de renderização do jogador.
@@ -24,7 +26,7 @@
 
 `soldier` representa a arte concreta atualmente vinculada a essa entidade em tempo de execução. `soldier_animation_data`, `SOLDIER_ANIMATION_*`, as tabelas internas de `soldier_animation_sprites`/frames/definitions e `soldier_sprite_palette` são específicas do asset. O módulo de player é o único ponto de integração em C que seleciona as definições do Soldier e espelha o metasprite atual quando a orientação é para a esquerda.
 
-O banco anexado de 8 KiB de `assets/game.chr` é vinculado através de `src/chr.s`. Soldier usa `$00-$07`, a espada animada `$08-$09` e Bat `$0A-$0D` na pattern table `$0000`. Os backgrounds usam `$1000`, cujo tile zero permanece vazio. Soldier/espada selecionam a paleta 0 e Bat seleciona sua paleta anexada no slot 1.
+Os primeiros 4 KiB de `assets/game.chr` são vinculados através de `src/chr.s`. Soldier usa `$00-$07`, a espada animada `$08-$09` e Bat `$0A-$0D` na pattern table `$0000`. A tabela de background em `$1000` contém os glifos ASCII esparsos de um bitplane exigidos pelas telas iniciais; o tile zero permanece vazio. O startup carrega as paletas de sprites, e o módulo de tela carrega a paleta mínima preta/branca de background com renderização e NMI desabilitadas.
 
 ## Limite entre C e Assembly
 
@@ -38,7 +40,16 @@ A lógica de gameplay deve permanecer em C a menos que a inspeção do código g
 2. Com a renderização desabilitada, a inicialização limpa `$2000-$2FFF`, preenche todas as entradas de paleta com o preto do NES (`$0F`), preenche a shadow de OAM com `$FF`, inicializa o runtime de C e habilita a NMI juntamente com a renderização de background/sprites.
 3. A rotina de NMI preserva A/X/Y, realiza um DMA de OAM de 256 bytes a partir de `$0200`, restaura o scrolling para zero, incrementa um contador de frames de 8 bits na zero page, restaura os registradores e retorna. O processamento no pior caso é de aproximadamente 583 ciclos de CPU, incluindo a entrada da interrupção, situando-se confortavelmente dentro dos cerca de 2.273 ciclos do VBlank em NTSC.
 4. `nes_wait_frame` captura uma cópia instantânea (snapshot) do contador e aguarda até que a NMI o altere. Uma comparação de 8 bits é atômica no 6502; o estouro de ciclo (wraparound) é seguro porque 256 NMIs não podem ocorrer entre a captura e a comparação.
-5. O loop principal atualiza player, espada automática e perseguição dos Bats, aplica a hitbox apenas durante frames ativos e reconstrói a OAM na ordem player, espada opcional e pool estável de inimigos. O trabalho permanece fora da NMI.
+5. Durante a inicialização, `game.c` avança a máquina de crédito/title com amostras de input sincronizadas pela NMI. Trocas completas desabilitam temporariamente NMI e renderização, limpam 1.024 bytes, escrevem o texto fixo, aguardam VBlank e restauram scroll zero antes de reabilitar a renderização.
+6. Depois da entrada em `PLAYING`, a inicialização retorna para `main`. O loop principal atualiza player, espada automática e perseguição dos Bats, aplica a hitbox apenas durante frames ativos e reconstrói a OAM na ordem player, espada opcional e pool estável de inimigos. O trabalho permanece fora da NMI.
+
+## Estados iniciais do jogo
+
+`game_flow` começa em `GAME_STATE_PRESENTED_BY`, muda para `GAME_STATE_TITLE` após 150 atualizações NTSC ou uma borda de START e muda para `GAME_STATE_PLAYING` somente com outra borda de START. O prompt começa visível e alterna a cada 30 atualizações. As bordas vêm da máscara existente `current & ~previous`, portanto START mantido não produz outra borda na title screen.
+
+O loop dos estados iniciais fica em `game_init()`. Os pools de gameplay e a primeira imagem de OAM só são criados na entrada de `PLAYING`; então `game_init()` retorna e o hot path já medido continua sem despacho recorrente de estado. Isso preserva o orçamento com 12 Bats. Um novo estado pré-run é uma extensão pequena de `game_flow` e do coordenador frio. Pause, level-up ou game over que interrompam uma run exigirão um dispatcher medido; essa arquitetura não foi antecipada antes do marco correspondente.
+
+A atualização do blink escreve apenas 11 tiles no limite sincronizado do frame. Mesmo assim, o helper desabilita renderização/NMI durante a escrita e restaura o scroll, evitando corrida no latch de endereço da PPU. Trocas completas são cortes diretos e podem ocupar vários frames de vídeo com renderização desligada; nenhuma transferência grande de VRAM ocorre durante renderização ativa.
 
 Como o DMA de OAM ocorre antes dessa reconstrução no loop principal, uma shadow
 recém-construída torna-se visível na NMI seguinte. Os testes de runtime, portanto,
@@ -81,7 +92,7 @@ rígida imediata.
 
 A colisão compara a AABB 16x8 de cada Bat com a AABB 8x16 da espada somente durante um frame ativo do ataque. Um acerto libera o slot imediatamente. HP, dano no player e drops de XP não fazem parte deste marco.
 
-A inspeção da saída do cc65 e dos contadores de frame no Mesen identificou a indexação repetida de structs com 16 bits, o estado de animação por inimigo e as chamadas genéricas de metasprite como caminho crítico. O pool agora usa arrays compactos de bytes, temporização compartilhada e um renderizador limitado aos dois sprites do Bat, ainda em C. Um teste de estresse de 1.700 frames no Mesen alcançou os 12 slots ativos com 1.696 NMIs e 1.696 atualizações de gameplay, portanto não foi necessária nenhuma rotina em Assembly.
+A inspeção da saída do cc65 e dos contadores de frame no Mesen identificou a indexação repetida de structs com 16 bits, o estado de animação por inimigo e as chamadas genéricas de metasprite como caminho crítico. O pool agora usa arrays compactos de bytes, temporização compartilhada e um renderizador limitado aos dois sprites do Bat, ainda em C. O teste atual de 1.750 frames compensa as telas iniciais, alcança os 12 slots e registra 1.735 NMIs/updates de gameplay após a baseline pós-transição, sem perda. Nenhuma rotina em Assembly foi necessária.
 
 ## Dados de animação e reutilização
 

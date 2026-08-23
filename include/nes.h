@@ -14,6 +14,11 @@
 #define NES_OAMDMA   UINT16_C(0x4014)
 #define NES_JOYPAD1  UINT16_C(0x4016)
 
+/* Fixed-screen rendering: NMI on, BG tiles at $1000, sprite tiles at $0000. */
+#define NES_PPUCTRL_GAME UINT8_C(0x90)
+#define NES_PPUMASK_GAME UINT8_C(0x1E)
+#define NES_PPUSTATUS_VBLANK UINT8_C(0x80)
+
 extern uint8_t oam_shadow[256];
 extern volatile uint8_t nes_frame_counter;
 

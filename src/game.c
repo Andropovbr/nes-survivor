@@ -1,18 +1,19 @@
 #include "game.h"
 
 #include "enemy.h"
+#include "game_flow.h"
 #include "input.h"
 #include "metasprite.h"
+#include "nes.h"
 #include "player.h"
+#include "screen.h"
 #include "weapon_sword.h"
 #include "tuning.h"
 
-static GameState current_state;
 static OamRenderer oam_renderer;
 
-void game_init(void)
+static void gameplay_init(void)
 {
-    current_state = GAME_STATE_BOOT;
     player_init();
     weapon_sword_init();
     enemy_init();
@@ -23,14 +24,43 @@ void game_init(void)
         (uint8_t)(player_facing() == PLAYER_FACING_LEFT));
 }
 
+static void initial_screens_update(void)
+{
+    GameState previous_state = game_flow_state();
+    uint8_t previous_prompt_visible = game_flow_title_prompt_visible();
+
+    game_flow_update(input_pressed());
+
+    if (game_flow_state() != previous_state) {
+        if (game_flow_state() == GAME_STATE_TITLE) {
+            screen_show_title();
+        } else if (game_flow_state() == GAME_STATE_PLAYING) {
+            screen_show_gameplay();
+            gameplay_init();
+        }
+    } else if (game_flow_state() == GAME_STATE_TITLE &&
+               game_flow_title_prompt_visible() != previous_prompt_visible) {
+        screen_set_title_prompt_visible(game_flow_title_prompt_visible());
+    }
+}
+
+void game_init(void)
+{
+    game_flow_init();
+    oam_renderer_init(&oam_renderer);
+    screen_show_presented_by();
+
+    while (game_flow_state() != GAME_STATE_PLAYING) {
+        nes_wait_frame();
+        input_update();
+        initial_screens_update();
+    }
+}
+
 void game_update(void)
 {
     WeaponSwordHitbox sword_hitbox;
     uint8_t facing_left;
-
-    if (current_state == GAME_STATE_BOOT) {
-        current_state = GAME_STATE_RUNNING;
-    }
 
     player_update(input_current());
     weapon_sword_update();
@@ -52,5 +82,5 @@ void game_update(void)
 
 GameState game_state(void)
 {
-    return current_state;
+    return game_flow_state();
 }

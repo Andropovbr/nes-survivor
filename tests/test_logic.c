@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include "enemy.h"
+#include "game_flow.h"
 #include "input.h"
 #include "metasprite.h"
 #include "nes.h"
@@ -85,6 +86,55 @@ static void test_input_edges(void)
     input_test_apply(0U);
     CHECK(input_pressed() == 0U);
     CHECK(input_released() == (uint8_t)(BUTTON_A | BUTTON_LEFT));
+}
+
+static void test_game_flow(void)
+{
+    uint16_t frame;
+
+    game_flow_init();
+    CHECK(game_flow_state() == GAME_STATE_PRESENTED_BY);
+    CHECK(game_flow_title_prompt_visible() == 0U);
+
+    for (frame = 0U; frame < PRESENTED_BY_DURATION_FRAMES - 1U; ++frame) {
+        game_flow_update(0U);
+        CHECK(game_flow_state() == GAME_STATE_PRESENTED_BY);
+    }
+    game_flow_update(0U);
+    CHECK(game_flow_state() == GAME_STATE_TITLE);
+    CHECK(game_flow_title_prompt_visible() == 1U);
+
+    for (frame = 0U; frame < TITLE_BLINK_HALF_PERIOD_FRAMES - 1U; ++frame) {
+        game_flow_update(0U);
+        CHECK(game_flow_title_prompt_visible() == 1U);
+    }
+    game_flow_update(0U);
+    CHECK(game_flow_title_prompt_visible() == 0U);
+    for (frame = 0U; frame < TITLE_BLINK_HALF_PERIOD_FRAMES; ++frame) {
+        game_flow_update(0U);
+    }
+    CHECK(game_flow_title_prompt_visible() == 1U);
+
+    game_flow_update(BUTTON_START);
+    CHECK(game_flow_state() == GAME_STATE_PLAYING);
+
+    game_flow_init();
+    input_test_apply(0U);
+    input_test_apply(BUTTON_START);
+    game_flow_update(input_pressed());
+    CHECK(game_flow_state() == GAME_STATE_TITLE);
+    input_test_apply(BUTTON_START);
+    game_flow_update(input_pressed());
+    CHECK(game_flow_state() == GAME_STATE_TITLE);
+    input_test_apply(0U);
+    game_flow_update(input_pressed());
+    input_test_apply(BUTTON_START);
+    game_flow_update(input_pressed());
+    CHECK(game_flow_state() == GAME_STATE_PLAYING);
+
+    game_flow_init();
+    CHECK(game_flow_state() == GAME_STATE_PRESENTED_BY);
+    CHECK(game_flow_title_prompt_visible() == 0U);
 }
 
 static void test_player_direction_and_animation_selection(void)
@@ -531,6 +581,7 @@ int main(void)
 {
     test_rng();
     test_input_edges();
+    test_game_flow();
     test_player_direction_and_animation_selection();
     test_player_diagonal_and_bounds();
     test_animation_duration_and_loop();

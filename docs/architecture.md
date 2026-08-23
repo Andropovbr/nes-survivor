@@ -9,8 +9,13 @@
 - `src/nes.s` owns the page-aligned OAM allocation, frame wait primitive and
   controller-port read routine.
 - `src/main.c` orchestrates initialization and the synchronized main loop.
-- `src/game.c` owns the explicit `BOOT` to `RUNNING` transition and orchestrates
-  player, sword, enemy collision and deterministic OAM reconstruction.
+- `src/game.c` coordinates the initial-screen lifecycle, initializes gameplay
+  only on entry to `PLAYING`, then orchestrates player, sword, enemy collision
+  and deterministic OAM reconstruction without dispatch cost in the hot path.
+- `src/game_flow.c` owns the explicit `PRESENTED_BY`, `TITLE` and `PLAYING`
+  states plus their deterministic frame timers.
+- `src/screen.c` performs the small fixed-screen nametable, palette and text
+  writes used by the credit and title screens.
 - `src/input.c` derives current, pressed and released button masks from the raw
   hardware sample.
 - `src/rng.c` implements deterministic `xorshift16` state and output functions.
@@ -52,11 +57,12 @@ it is a reusable animation playback cursor, not the playable character identity.
 integration point that selects Soldier definitions and mirrors the current
 metasprite when the facing direction is left.
 
-The attached 8 KiB `assets/game.chr` bank is linked through `src/chr.s`. Soldier
-uses `$00-$07`, the animated sword `$08-$09`, and Bat `$0A-$0D` in sprite pattern
-table `$0000`.
-Backgrounds use `$1000`, whose tile zero is blank, so a cleared nametable remains
-black. Startup loads the sprite palettes while rendering and NMI are disabled.
+The first 4 KiB of `assets/game.chr` is linked through `src/chr.s`. Soldier uses
+`$00-$07`, the animated sword `$08-$09`, and Bat `$0A-$0D` in sprite pattern
+table `$0000`. The background table at `$1000` contains the sparse one-bitplane
+ASCII glyphs required by the initial screens; tile zero remains blank. Startup
+loads the sprite palettes, while the screen module loads the minimal black/white
+background palette with rendering and NMI disabled.
 Soldier and sword select palette 0; Bat selects its attached colors in palette 1.
 
 ## C and Assembly boundary
@@ -84,9 +90,37 @@ not by itself a reason to move it into Assembly.
 4. `nes_wait_frame` snapshots the counter and waits until NMI changes it. An
    8-bit comparison is atomic on 6502; wraparound is safe because 256 NMIs cannot
    occur between the snapshot and comparison.
-5. The main loop updates player, automatic sword and Bat pursuit, applies the
+5. During initialization, `game.c` advances the credit/title state machine on
+   NMI-synchronized input samples. Full nametable changes temporarily disable
+   NMI and rendering, clear 1,024 bytes, write fixed text, wait for VBlank and
+   restore zero scroll before re-enabling rendering.
+6. After entry to `PLAYING`, initialization returns to `main`. The main loop
+   updates player, automatic sword and Bat pursuit, applies the
    sword hitbox only during active attack frames, then rebuilds OAM in player,
    optional sword and stable enemy-pool order. Work remains outside NMI.
+
+## Initial game states
+
+`game_flow` starts at `GAME_STATE_PRESENTED_BY`, changes to `GAME_STATE_TITLE`
+after 150 NTSC updates or a START edge, and changes to `GAME_STATE_PLAYING` only
+on another START edge. The title prompt starts visible and toggles every 30
+updates. Input edges come from the existing `current & ~previous` mask, so a
+held START has no edge on the title screen.
+
+The initial state loop lives in `game_init()`. Gameplay pools and the first OAM
+image are created only while entering `PLAYING`; `game_init()` then returns and
+the established gameplay hot path has no recurring state-dispatch overhead.
+This preserves the measured 12-Bat budget. Adding another pre-run state is a
+small extension to `game_flow` and the cold transition coordinator. A future
+pause, level-up or game-over state that interrupts an active run will require a
+measured runtime dispatcher; that architecture is deliberately not introduced
+before such a milestone exists.
+
+The 11-tile blink update happens at the synchronized frame boundary. The helper
+still disables rendering/NMI around that bounded write and restores scroll,
+preventing PPU address-latch races. Full changes are direct cuts and may span
+multiple video frames while rendering is off; no large VRAM transfer occurs
+during active rendering.
 
 Because OAM DMA runs before that main-loop reconstruction, a newly built shadow
 becomes visible at the following NMI. Runtime tests therefore sample movement
@@ -155,9 +189,10 @@ player damage and XP drops are not part of this milestone.
 Inspection of cc65 output and Mesen frame counters identified repeated 16-bit
 struct indexing, per-enemy animation state and generic metasprite calls as the
 hot path. The pool now uses compact byte arrays, shared timing and a bounded
-two-sprite Bat renderer in C. A 1,700-frame Mesen stress run reached all 12
-active slots with 1,696 NMIs and 1,696 gameplay updates, so no Assembly routine
-was required.
+two-sprite Bat renderer in C. The current 1,750-frame Mesen stress run compensates
+for the initial screens, reaches all 12 slots and records 1,735 gameplay
+NMIs/updates after its post-transition baseline, with no skipped update. No
+Assembly routine was required.
 
 ## Animation data and reuse
 

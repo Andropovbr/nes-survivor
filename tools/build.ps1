@@ -22,7 +22,7 @@ function Invoke-Checked {
 function Build-Rom {
     New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
 
-    $cModules = @("main", "game", "input", "rng", "animation", "metasprite", "player", "soldier_animation_data", "weapon_sword", "enemy", "bat_animation_data")
+    $cModules = @("main", "game", "input", "rng", "animation", "metasprite", "player", "soldier_animation_data", "weapon_sword", "enemy", "bat_animation_data", "game_flow", "screen")
     $asmModules = @("crt0", "nmi", "nes", "chr")
     $objects = [System.Collections.Generic.List[string]]::new()
 
@@ -57,7 +57,7 @@ function Clean-Build {
 function Run-Tests {
     Build-Rom
     $testBinary = Join-Path $BuildDir "test_logic"
-    Invoke-Checked "cl65" @("-t", "sim6502", "--standard", "c99", "--warnings-as-errors", "-DUNIT_TEST", "-I", "include", "-o", $testBinary, "tests/test_logic.c", "src/input.c", "src/rng.c", "src/animation.c", "src/metasprite.c", "src/player.c", "src/soldier_animation_data.c", "src/weapon_sword.c", "src/enemy.c", "src/bat_animation_data.c")
+    Invoke-Checked "cl65" @("-t", "sim6502", "--standard", "c99", "--warnings-as-errors", "-DUNIT_TEST", "-I", "include", "-o", $testBinary, "tests/test_logic.c", "src/game_flow.c", "src/input.c", "src/rng.c", "src/animation.c", "src/metasprite.c", "src/player.c", "src/soldier_animation_data.c", "src/weapon_sword.c", "src/enemy.c", "src/bat_animation_data.c")
     Invoke-Checked "sim65" @($testBinary)
     Invoke-Checked "python" @("tests/validate_rom.py", "build/nes-survivor.nes", "build/nes-survivor.map", "build/nes-survivor.lbl")
 }
@@ -95,6 +95,7 @@ try {
         "test" { Run-Tests }
         "runtime" {
             Build-Rom
+            Run-MesenRuntime "tests/mesen_game_states.lua" "mesen-game-states"
             Run-MesenRuntime
         }
         "performance" {
