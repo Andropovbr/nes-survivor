@@ -6,21 +6,20 @@
   cc65 runtime startup, rendering enable and interrupt vectors.
 - `src/nmi.s` is the bounded NMI handler. It uploads the OAM shadow page, restores
   zero scroll and advances the frame counter.
-- `src/nes.s` owns the page-aligned OAM allocation, frame wait primitive and
-  controller-port read routine.
+- `src/nes.s` owns the page-aligned OAM allocation, frame wait primitive,
+  controller-port read routine and bounded noise-channel hit effect.
 - `src/main.c` orchestrates initialization and the synchronized main loop.
-- `src/game.c` coordinates the initial-screen lifecycle, initializes gameplay
-  only on entry to `PLAYING`, then orchestrates player, sword, enemy collision,
-  XP-gem collection and deterministic OAM reconstruction without dispatch cost
-  in the hot path.
-- `src/game_flow.c` owns the explicit `PRESENTED_BY`, `TITLE` and `PLAYING`
-  states plus their deterministic frame timers.
-- `src/screen.c` performs the small fixed-screen nametable, palette and text
-  writes used by the credit and title screens.
+- `src/game.c` coordinates screen transitions, initializes gameplay on entry to
+  `PLAYING`, applies scheduled player/sword collisions, triggers hit audio and
+  reconstructs OAM. Non-playing states use a cold dispatcher.
+- `src/game_flow.c` owns the explicit `PRESENTED_BY`, `TITLE`, `PLAYING` and
+  `GAME_OVER` states plus their deterministic transitions and frame timers.
+- `src/screen.c` performs fixed-screen nametable, palette and text writes for
+  credit, title, gameplay entry and game over.
 - `src/input.c` derives current, pressed and released button masks from the raw
   hardware sample.
 - `src/rng.c` implements deterministic `xorshift16` state and output functions.
-- `src/player.c` owns the compact mutable player state, bounded 8-direction
+- `src/player.c` owns compact HP/invulnerability state, bounded 8-direction
   movement, horizontal facing, animation selection and player render policy.
 - `src/animation.c` is a reusable data-driven frame player. It stores only an
   animation ID, local frame and countdown timer; generated durations control
@@ -101,10 +100,9 @@ not by itself a reason to move it into Assembly.
    NMI and rendering, clear 1,024 bytes, write fixed text, wait for VBlank and
    restore zero scroll before re-enabling rendering.
 6. After entry to `PLAYING`, initialization returns to `main`. The main loop
-   updates player, automatic sword and Bat pursuit, applies the
-   sword hitbox only during active attack frames, checks one gem for player
-   contact, then rebuilds OAM in player, optional sword, stable enemy-pool and
-   stable gem-pool order. Work remains outside NMI.
+   updates player, automatic sword and Bat pursuit, schedules bounded contact
+   and sword collision work, checks one gem, then rebuilds OAM in player,
+   optional sword, enemy-pool and gem-pool order. Work remains outside NMI.
 
 ## Initial game states
 
@@ -115,13 +113,11 @@ updates. Input edges come from the existing `current & ~previous` mask, so a
 held START has no edge on the title screen.
 
 The initial state loop lives in `game_init()`. Gameplay pools and the first OAM
-image are created only while entering `PLAYING`; `game_init()` then returns and
-the established gameplay hot path has no recurring state-dispatch overhead.
-This preserves the measured 12-Bat budget. Adding another pre-run state is a
-small extension to `game_flow` and the cold transition coordinator. A future
-pause, level-up or game-over state that interrupts an active run will require a
-measured runtime dispatcher; that architecture is deliberately not introduced
-before such a milestone exists.
+image are created only while entering `PLAYING`. Runtime dispatch is one early
+state check: `PLAYING` takes the hot path, while `GAME_OVER` and the returned
+title use the cold screen coordinator. Reaching zero HP enters `GAME_OVER` and
+writes its nametable; a new START edge enters `TITLE`, and another starts a new
+run with all pools and HP reinitialized.
 
 The 11-tile blink update is requested by C and consumed by the following NMI.
 NMI reads `PPUSTATUS` to reset the shared `$2005/$2006` latch, sets `PPUADDR` to
@@ -195,18 +191,33 @@ frames, so this first version deliberately favors bounded CPU cost over an
 immediate rigid response.
 
 Collision compares Bat 16x8 AABBs against the animated sword's 8x16 AABB only
-during active attack frames. Even and odd pool indexes alternate, so every Bat
-is checked at least once every two active frames while halving the peak
-collision scan. A hit creates a centered gem before clearing the Bat slot. HP
-and player damage are not implemented.
+during active attack frames. Bat/player contact uses a 16x16 lower-body AABB and
+one rotating used slot per eligible frame. Its Y offset is eight pixels. Facing
+right places it at `x + 8`; facing left places it at `x`, keeping the empty back
+and rear scabbard extension outside damage. A detected contact removes one HP
+and starts the tunable 30-frame cooldown; HP saturates at zero.
+
+When the player is vulnerable while the sword is active, a one-byte gameplay
+phase alternates contact and sword collision work instead of stacking both
+peaks. Sword parity is therefore visited at least once every four active frames
+in that overlap case. At 12 used slots, player contact can take up to 12 scan
+opportunities to detect. This bounded latency is the trade-off that retained
+zero skipped updates in the measured stress test.
+
+Each accepted hit calls the C-facing Assembly routine
+`nes_play_player_hit_sfx`. It enables the APU noise channel and writes `$1C`,
+`$04` and `$10` to `$400C/$400E/$400F`; the hardware length counter ends the
+impact after about ten NTSC frames without NMI or RAM state. No music engine or
+other APU owner exists yet.
 
 Inspection of cc65 output and Mesen frame counters identified repeated 16-bit
 struct indexing, per-enemy animation state and generic metasprite calls as the
 hot path. The pool now uses compact byte arrays, shared timing and a bounded
 two-sprite Bat renderer in C. The current 1,750-frame Mesen stress run compensates
 for the initial screens, reaches all 12 slots and records 1,735 gameplay
-NMIs/updates after its post-transition baseline, with no skipped update. No
-Assembly routine was required.
+NMIs/updates after its post-transition baseline, with no skipped update. Enemy
+and collision hot paths remain in C; the only new Assembly routine is the
+bounded APU trigger described above.
 
 ## Animation data and reuse
 

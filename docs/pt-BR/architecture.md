@@ -4,14 +4,14 @@
 
 - `src/crt0.s` contém o cabeçalho iNES, caminho de reset, inicialização de RAM e PPU, inicialização do runtime do cc65, habilitação da renderização e vetores de interrupção.
 - `src/nmi.s` é o tratador de NMI delimitado. Ele faz o upload da página shadow de OAM, restaura o scrolling em zero e avança o contador de frames.
-- `src/nes.s` gerencia a alocação de OAM alinhada à página, a primitiva de espera de frame e a rotina de leitura da porta de controle.
+- `src/nes.s` gerencia a OAM alinhada à página, espera de frame, leitura do controle e o efeito delimitado de acerto no canal de ruído.
 - `src/main.c` orquestra a inicialização e o loop principal sincronizado.
-- `src/game.c` coordena o ciclo das telas iniciais, inicializa o gameplay somente na entrada de `PLAYING` e então orquestra player, espada, colisão com inimigos, coleta de gemas e reconstrução determinística da OAM sem custo de despacho no hot path.
-- `src/game_flow.c` mantém os estados explícitos `PRESENTED_BY`, `TITLE` e `PLAYING` e seus timers determinísticos em frames.
-- `src/screen.c` realiza as pequenas escritas de nametable, paleta e texto usadas pelo crédito e pela title screen.
+- `src/game.c` coordena transições de tela, inicializa `PLAYING`, escalona colisões, dispara o áudio de dano e reconstrói a OAM; estados fora do gameplay usam o coordenador frio.
+- `src/game_flow.c` mantém os estados explícitos `PRESENTED_BY`, `TITLE`, `PLAYING` e `GAME_OVER`, com transições e timers determinísticos.
+- `src/screen.c` realiza escritas de nametable, paleta e texto para crédito, título, entrada no gameplay e game over.
 - `src/input.c` deriva as máscaras de botões atuais, pressionados e soltos a partir da amostragem direta do hardware.
 - `src/rng.c` implementa o estado determinístico de `xorshift16` e suas funções de geração.
-- `src/player.c` gerencia o estado mutável e compacto do jogador, movimentação delimitada em 8 direções, orientação horizontal, seleção de animação e política de renderização do jogador.
+- `src/player.c` gerencia HP e invulnerabilidade compactos, movimentação delimitada em 8 direções, orientação horizontal, animação e renderização.
 - `src/animation.c` é um reprodutor de frames reutilizável e orientado a dados. Ele armazena apenas o ID da animação, frame local e temporizador de contagem regressiva; durações geradas controlam a repetição (looping), e apenas a alteração de animação reinicia a reprodução para o frame zero.
 - `src/metasprite.c` oculta entradas não utilizadas da OAM e expande registros de tiles relativos com sinal para a shadow de OAM existente. Seu espelhamento horizontal opcional ajusta tanto a geometria quanto o bit de inversão (flip) de hardware.
 - `src/soldier_animation_data.c` consolida as exportações de idle e caminhada do Soldier geradas separadamente sob os símbolos `soldier`. Os 21 registros de tiles, 3 frames e 2 definições mantêm seus valores gerados; apenas os offsets agregados e nomes foram alterados.
@@ -48,7 +48,7 @@ A lógica de gameplay deve permanecer em C a menos que a inspeção do código g
 
 `game_flow` começa em `GAME_STATE_PRESENTED_BY`, muda para `GAME_STATE_TITLE` após 150 atualizações NTSC ou uma borda de START e muda para `GAME_STATE_PLAYING` somente com outra borda de START. O prompt começa visível e alterna a cada 30 atualizações. As bordas vêm da máscara existente `current & ~previous`, portanto START mantido não produz outra borda na title screen.
 
-O loop dos estados iniciais fica em `game_init()`. Os pools de gameplay e a primeira imagem de OAM só são criados na entrada de `PLAYING`; então `game_init()` retorna e o hot path já medido continua sem despacho recorrente de estado. Isso preserva o orçamento com 12 Bats. Um novo estado pré-run é uma extensão pequena de `game_flow` e do coordenador frio. Pause, level-up ou game over que interrompam uma run exigirão um dispatcher medido; essa arquitetura não foi antecipada antes do marco correspondente.
+O loop dos estados iniciais fica em `game_init()`. Os pools de gameplay e a primeira imagem de OAM só são criados na entrada de `PLAYING`. O despacho em runtime é uma verificação antecipada: `PLAYING` segue o hot path, enquanto `GAME_OVER` e o título após ele usam o coordenador frio. HP zero escreve a tela de game over; uma nova borda de START entra em `TITLE`, e outra reinicializa a run e todos os pools.
 
 A atualização de 11 tiles é solicitada pelo C e consumida pela NMI seguinte. A NMI lê `PPUSTATUS` para reiniciar o latch compartilhado de `$2005/$2006`, aponta `PPUADDR` para `$220A`, escreve o prompt inteiro visível ou vazio e restaura o scroll. Ela não alterna `PPUCTRL` nem `PPUMASK`, portanto a renderização permanece estável. Trocas completas continuam sendo cortes diretos e podem ocupar vários frames de vídeo com renderização desligada.
 
@@ -93,9 +93,13 @@ varredura completa dos 66 pares leva até cerca de 106 frames de gameplay; esta
 primeira versão prioriza deliberadamente CPU previsível em vez de resposta
 rígida imediata.
 
-A colisão compara as AABBs 16x8 dos Bats com a AABB 8x16 da espada somente durante frames ativos. Índices pares e ímpares alternam, portanto cada Bat é verificado ao menos a cada dois frames ativos, reduzindo pela metade o pico da colisão. Um acerto cria uma gema centralizada antes de liberar o slot do Bat. HP e dano no player não foram implementados.
+A colisão compara as AABBs 16x8 dos Bats com a AABB 8x16 da espada somente durante frames ativos. O contato com o player usa uma AABB 16x16 na parte inferior do corpo e um slot rotativo por oportunidade. O offset Y é oito pixels; olhando à direita começa em `x + 8`, e à esquerda começa em `x`, excluindo das costas tanto a área vazia quanto a extensão da bainha. Um contato aceito remove um HP, satura em zero e inicia o cooldown ajustável de 30 frames.
 
-A inspeção da saída do cc65 e dos contadores de frame no Mesen identificou a indexação repetida de structs com 16 bits, o estado de animação por inimigo e as chamadas genéricas de metasprite como caminho crítico. O pool agora usa arrays compactos de bytes, temporização compartilhada e um renderizador limitado aos dois sprites do Bat, ainda em C. O teste atual de 1.750 frames compensa as telas iniciais, alcança os 12 slots e registra 1.735 NMIs/updates de gameplay após a baseline pós-transição, sem perda. Nenhuma rotina em Assembly foi necessária.
+Quando o player está vulnerável e a espada ativa, uma fase de gameplay de um byte alterna o trabalho de contato e de espada, evitando somar os dois picos. Nesse caso, cada paridade da espada ainda é visitada ao menos uma vez a cada quatro frames ativos; com 12 slots usados, o contato pode levar até 12 oportunidades de varredura para ser reconhecido. Essa latência delimitada preservou zero updates perdidos no stress medido.
+
+Cada dano chama `nes_play_player_hit_sfx`, rotina Assembly que escreve `$1C`, `$04` e `$10` em `$400C/$400E/$400F` e habilita o canal de ruído. O length counter encerra o impacto após cerca de dez frames NTSC sem estado em RAM ou trabalho na NMI. Ao zerar HP, `GAME_OVER` limpa a OAM e mostra o texto; START retorna a `TITLE`, e outro START reinicializa a run com o HP configurado.
+
+A inspeção da saída do cc65 e dos contadores de frame no Mesen identificou a indexação repetida de structs com 16 bits, o estado de animação por inimigo e as chamadas genéricas de metasprite como caminho crítico. O pool agora usa arrays compactos de bytes, temporização compartilhada e um renderizador limitado aos dois sprites do Bat, ainda em C. O teste atual de 1.750 frames compensa as telas iniciais, alcança os 12 slots e registra 1.735 NMIs/updates de gameplay após a baseline pós-transição, sem perda. Os hot paths de inimigos e colisões permanecem em C; o único novo Assembly é o gatilho delimitado do APU descrito acima.
 
 ## Dados de animação e reutilização
 

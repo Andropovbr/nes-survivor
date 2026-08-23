@@ -46,7 +46,7 @@ def main() -> int:
         chr_rom[:4096] == chr_source[:4096],
         "ROM sprite CHR does not match the first bank of assets/game.chr",
     )
-    for character in " ABCDEGHINOPRSTUVY":
+    for character in " ABCDEGHIMNOPRSTUVY":
         tile = chr_rom[4096 + ord(character) * 16 : 4096 + (ord(character) + 1) * 16]
         if character == " ":
             require(tile == bytes(16), "background space tile is not blank")

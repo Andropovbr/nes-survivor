@@ -8,6 +8,7 @@
 
 void enemy_init(void);
 void enemy_update(uint8_t target_x, uint8_t target_y);
+uint8_t enemy_overlaps_player(uint8_t player_x, uint8_t player_y);
 void enemy_apply_sword_hitbox(const WeaponSwordHitbox *hitbox);
 void enemy_render(OamRenderer *renderer);
 

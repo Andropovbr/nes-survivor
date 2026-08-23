@@ -48,7 +48,20 @@ void game_flow_update(uint8_t pressed_buttons)
 
     case GAME_STATE_PLAYING:
         break;
+
+    case GAME_STATE_GAME_OVER:
+        if ((pressed_buttons & BUTTON_START) != 0U) {
+            enter_title();
+        }
+        break;
     }
+}
+
+void game_flow_enter_game_over(void)
+{
+    current_state = GAME_STATE_GAME_OVER;
+    state_timer = 0U;
+    title_prompt_visible = 0U;
 }
 
 GameState game_flow_state(void)

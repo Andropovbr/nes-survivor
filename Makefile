@@ -1,5 +1,6 @@
 PROJECT := nes-survivor
 BUILD_DIR := build
+PERF_BUILD_DIR := $(BUILD_DIR)/performance
 
 CC65 ?= cc65
 CA65 ?= ca65
@@ -31,12 +32,21 @@ MAP := $(BUILD_DIR)/$(PROJECT).map
 LABELS := $(BUILD_DIR)/$(PROJECT).lbl
 TEST_BIN := $(BUILD_DIR)/test_logic
 
+PERF_C_ASM := $(addprefix $(PERF_BUILD_DIR)/c_,$(addsuffix .s,$(C_MODULES)))
+PERF_C_OBJECTS := $(addprefix $(PERF_BUILD_DIR)/c_,$(addsuffix .o,$(C_MODULES)))
+PERF_ASM_OBJECTS := $(addprefix $(PERF_BUILD_DIR)/,$(addsuffix .o,$(ASM_MODULES)))
+PERF_OBJECTS := $(PERF_ASM_OBJECTS) $(PERF_C_OBJECTS)
+PERF_ROM := $(PERF_BUILD_DIR)/$(PROJECT).nes
+
 .PHONY: all clean test test-runtime test-performance
 
 all: $(ROM)
 
 $(BUILD_DIR):
 	$(PYTHON) tools/build_dir.py create
+
+$(PERF_BUILD_DIR):
+	$(PYTHON) tools/build_dir.py create-performance
 
 $(BUILD_DIR)/c_%.s: src/%.c | $(BUILD_DIR)
 	$(CC65) $(CFLAGS) --add-source -o $@ $<
@@ -49,8 +59,23 @@ $(BUILD_DIR)/%.o: src/%.s | $(BUILD_DIR)
 
 $(BUILD_DIR)/chr.o: assets/game.chr
 
+$(PERF_BUILD_DIR)/c_%.s: src/%.c | $(PERF_BUILD_DIR)
+	$(CC65) $(CFLAGS) -DPLAYER_INITIAL_HP=255U --add-source -o $@ $<
+
+$(PERF_BUILD_DIR)/c_%.o: $(PERF_BUILD_DIR)/c_%.s
+	$(CA65) $(AFLAGS) -o $@ $<
+
+$(PERF_BUILD_DIR)/%.o: src/%.s | $(PERF_BUILD_DIR)
+	$(CA65) $(AFLAGS) -o $@ $<
+
+$(PERF_BUILD_DIR)/chr.o: assets/game.chr
+
 $(ROM): $(OBJECTS) cfg/nrom.cfg
 	$(LD65) $(LDFLAGS) -m $(MAP) -Ln $(LABELS) -o $@ $(OBJECTS) nes.lib
+
+$(PERF_ROM): $(PERF_OBJECTS) cfg/nrom.cfg
+	$(LD65) $(LDFLAGS) -m $(PERF_BUILD_DIR)/$(PROJECT).map \
+		-Ln $(PERF_BUILD_DIR)/$(PROJECT).lbl -o $@ $(PERF_OBJECTS) nes.lib
 
 TEST_SOURCES := tests/test_logic.c src/game_flow.c src/input.c src/rng.c src/animation.c \
 	src/metasprite.c src/player.c src/soldier_animation_data.c \
@@ -69,9 +94,10 @@ test: $(ROM) $(TEST_BIN)
 test-runtime: $(ROM)
 	$(MESEN) --testrunner $(ROM) tests/mesen_game_states.lua
 	$(MESEN) --testrunner $(ROM) tests/mesen_player.lua
+	$(MESEN) --testrunner $(ROM) tests/mesen_player_damage.lua
 
-test-performance: $(ROM)
-	$(MESEN) --testrunner $(ROM) tests/mesen_bat_stress.lua
+test-performance: $(PERF_ROM)
+	$(MESEN) --testrunner $(PERF_ROM) tests/mesen_bat_stress.lua
 
 clean:
 	$(PYTHON) tools/build_dir.py clean

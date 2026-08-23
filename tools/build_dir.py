@@ -10,19 +10,27 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BUILD_DIR = (PROJECT_ROOT / "build").resolve()
+PERFORMANCE_BUILD_DIR = (BUILD_DIR / "performance").resolve()
 
 
 def main() -> int:
-    if len(sys.argv) != 2 or sys.argv[1] not in {"create", "clean"}:
-        print("usage: build_dir.py {create|clean}", file=sys.stderr)
+    if len(sys.argv) != 2 or sys.argv[1] not in {
+        "create", "create-performance", "clean"
+    }:
+        print("usage: build_dir.py {create|create-performance|clean}", file=sys.stderr)
         return 2
 
     if BUILD_DIR.parent != PROJECT_ROOT:
         print("refusing to operate outside the project root", file=sys.stderr)
         return 1
+    if PERFORMANCE_BUILD_DIR.parent != BUILD_DIR:
+        print("refusing to operate outside the build directory", file=sys.stderr)
+        return 1
 
     if sys.argv[1] == "create":
         BUILD_DIR.mkdir(parents=True, exist_ok=True)
+    elif sys.argv[1] == "create-performance":
+        PERFORMANCE_BUILD_DIR.mkdir(parents=True, exist_ok=True)
     elif BUILD_DIR.exists():
         shutil.rmtree(BUILD_DIR)
 

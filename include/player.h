@@ -11,11 +11,16 @@ typedef enum PlayerFacing {
 } PlayerFacing;
 
 void player_init(void);
-void player_update(uint8_t buttons);
+uint8_t player_update(uint8_t buttons);
 void player_render(OamRenderer *renderer);
+uint8_t player_take_contact_damage(void);
 
 uint8_t player_x(void);
 uint8_t player_y(void);
+uint8_t player_hitbox_x(void);
+uint8_t player_hitbox_y(void);
+uint8_t player_hp(void);
+uint8_t player_hit_cooldown(void);
 PlayerFacing player_facing(void);
 uint8_t player_is_moving(void);
 uint8_t player_current_animation(void);

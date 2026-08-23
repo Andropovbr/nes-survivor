@@ -20,6 +20,19 @@
 #error "unexpected initial choice count"
 #endif
 
+#if PLAYER_INITIAL_HP != 5U
+#error "unexpected initial player HP"
+#endif
+
+#if PLAYER_HIT_COOLDOWN_FRAMES != 30U
+#error "unexpected player hit cooldown"
+#endif
+
+#if PLAYER_HITBOX_WIDTH_PIXELS != 16U || \
+    PLAYER_HITBOX_HEIGHT_PIXELS != 16U
+#error "unexpected player damage hitbox"
+#endif
+
 #if UINT8_MAX != 255U || UINT16_MAX != 65535U
 #error "unexpected fixed-width integer representation"
 #endif
@@ -131,6 +144,14 @@ static void test_game_flow(void)
     game_flow_update(BUTTON_START);
     CHECK(game_flow_state() == GAME_STATE_PLAYING);
 
+    game_flow_enter_game_over();
+    CHECK(game_flow_state() == GAME_STATE_GAME_OVER);
+    game_flow_update(0U);
+    CHECK(game_flow_state() == GAME_STATE_GAME_OVER);
+    game_flow_update(BUTTON_START);
+    CHECK(game_flow_state() == GAME_STATE_TITLE);
+    CHECK(game_flow_title_prompt_visible() == 1U);
+
     game_flow_init();
     input_test_apply(0U);
     input_test_apply(BUTTON_START);
@@ -236,6 +257,89 @@ static void test_player_diagonal_and_bounds(void)
     player_update((uint8_t)(BUTTON_LEFT | BUTTON_RIGHT));
     CHECK(player_x() == PLAYER_MAX_X);
     CHECK(player_is_moving() == 0U);
+}
+
+static void test_player_contact_damage_and_cooldown(void)
+{
+    uint8_t update;
+    uint8_t hit;
+
+    player_init();
+    CHECK(player_hp() == PLAYER_INITIAL_HP);
+    CHECK(player_hit_cooldown() == 0U);
+    CHECK(player_take_contact_damage() == 1U);
+    CHECK(player_hp() == (uint8_t)(PLAYER_INITIAL_HP - 1U));
+    CHECK(player_hit_cooldown() == PLAYER_HIT_COOLDOWN_FRAMES);
+    CHECK(player_take_contact_damage() == 0U);
+    CHECK(player_hp() == (uint8_t)(PLAYER_INITIAL_HP - 1U));
+
+    for (update = 0U; update < PLAYER_HIT_COOLDOWN_FRAMES - 1U;
+         ++update) {
+        player_update(0U);
+        CHECK(player_take_contact_damage() == 0U);
+    }
+    CHECK(player_hit_cooldown() == 1U);
+    player_update(0U);
+    CHECK(player_hit_cooldown() == 0U);
+    CHECK(player_take_contact_damage() == 1U);
+
+    for (hit = 2U; hit < PLAYER_INITIAL_HP; ++hit) {
+        for (update = 0U; update < PLAYER_HIT_COOLDOWN_FRAMES; ++update) {
+            player_update(0U);
+        }
+        CHECK(player_take_contact_damage() == 1U);
+    }
+    CHECK(player_hp() == 0U);
+    CHECK(player_take_contact_damage() == 0U);
+}
+
+static void test_enemy_player_contact_bounds(void)
+{
+    uint8_t hitbox_x;
+    uint8_t hitbox_y;
+
+    player_init();
+    hitbox_x = player_hitbox_x();
+    hitbox_y = player_hitbox_y();
+    CHECK(hitbox_x ==
+          (uint8_t)(PLAYER_INITIAL_X +
+                    PLAYER_HITBOX_RIGHT_X_OFFSET_PIXELS));
+    CHECK(hitbox_y ==
+          (uint8_t)(PLAYER_INITIAL_Y + PLAYER_HITBOX_Y_OFFSET_PIXELS));
+
+    enemy_init();
+    enemy_test_set(0U, 1U, hitbox_x, hitbox_y);
+    CHECK(enemy_overlaps_player(hitbox_x, hitbox_y) == 1U);
+
+    enemy_test_set(0U, 1U,
+                   (uint8_t)(hitbox_x + PLAYER_HITBOX_WIDTH_PIXELS),
+                   hitbox_y);
+    CHECK(enemy_overlaps_player(hitbox_x, hitbox_y) == 0U);
+    enemy_test_set(0U, 1U,
+                   (uint8_t)(hitbox_x + PLAYER_HITBOX_WIDTH_PIXELS - 1U),
+                   hitbox_y);
+    CHECK(enemy_overlaps_player(hitbox_x, hitbox_y) == 1U);
+
+    enemy_test_set(0U, 1U, hitbox_x,
+                   (uint8_t)(hitbox_y + PLAYER_HITBOX_HEIGHT_PIXELS));
+    CHECK(enemy_overlaps_player(hitbox_x, hitbox_y) == 0U);
+    enemy_test_set(0U, 1U, hitbox_x,
+                   (uint8_t)(hitbox_y + PLAYER_HITBOX_HEIGHT_PIXELS - 1U));
+    CHECK(enemy_overlaps_player(hitbox_x, hitbox_y) == 1U);
+
+    /* A Bat ending exactly at the right-facing body's back edge overlaps only
+     * the visual scabbard/empty area and must not damage the player. */
+    enemy_test_set(0U, 1U, (uint8_t)(hitbox_x - BAT_WIDTH_PIXELS), hitbox_y);
+    CHECK(enemy_overlaps_player(hitbox_x, hitbox_y) == 0U);
+
+    enemy_test_set(0U, 0U, hitbox_x, hitbox_y);
+    CHECK(enemy_overlaps_player(hitbox_x, hitbox_y) == 0U);
+
+    player_update(BUTTON_LEFT);
+    CHECK(player_hitbox_x() ==
+          (uint8_t)(player_x() + PLAYER_HITBOX_LEFT_X_OFFSET_PIXELS));
+    CHECK(player_hitbox_y() ==
+          (uint8_t)(player_y() + PLAYER_HITBOX_Y_OFFSET_PIXELS));
 }
 
 static void test_animation_duration_and_loop(void)
@@ -666,11 +770,13 @@ int main(void)
     test_game_flow();
     test_player_direction_and_animation_selection();
     test_player_diagonal_and_bounds();
+    test_player_contact_damage_and_cooldown();
     test_animation_duration_and_loop();
     test_metasprite_rendering_and_idle_flip();
     test_automatic_sword_attack_and_rendering();
     test_sword_screen_edges_and_oam_saturation();
     test_enemy_spawn_movement_collision_and_saturation();
+    test_enemy_player_contact_bounds();
     test_xp_gem_collection_condensation_and_rendering();
     test_enemy_separation();
     test_enemy_sword_collision_staggering();

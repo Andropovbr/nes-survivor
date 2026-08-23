@@ -53,6 +53,7 @@ static uint8_t pending_separation_other;
 static uint8_t pending_separation_index_position;
 static uint8_t pending_separation_other_position;
 static uint8_t sword_hitbox_scan_parity;
+static uint8_t player_contact_scan_index;
 
 static uint8_t scale_random_to_range(uint8_t random, uint8_t range)
 {
@@ -120,6 +121,7 @@ void enemy_init(void)
     separation_pair_other = 1U;
     pending_separation = 0U;
     sword_hitbox_scan_parity = 0U;
+    player_contact_scan_index = 0U;
     spawn_timer = BAT_INITIAL_SPAWN_DELAY_FRAMES;
 }
 
@@ -330,6 +332,33 @@ void enemy_apply_sword_hitbox(const WeaponSwordHitbox *hitbox)
            enemy_active[pool_high_water - 1U] == 0U) {
         --pool_high_water;
     }
+}
+
+uint8_t enemy_overlaps_player(uint8_t player_x, uint8_t player_y)
+{
+    uint8_t index;
+
+    if (pool_high_water == 0U) {
+        return 0U;
+    }
+    if (player_contact_scan_index >= pool_high_water) {
+        player_contact_scan_index = 0U;
+    }
+    index = player_contact_scan_index;
+    ++player_contact_scan_index;
+
+    if (enemy_active[index] != 0U) {
+        uint8_t bat_x = enemy_x_positions[index];
+        uint8_t bat_y = enemy_y_positions[index];
+
+        if (((uint8_t)(bat_x - player_x) < PLAYER_HITBOX_WIDTH_PIXELS ||
+             (uint8_t)(player_x - bat_x) < BAT_WIDTH_PIXELS) &&
+            ((uint8_t)(bat_y - player_y) < PLAYER_HITBOX_HEIGHT_PIXELS ||
+             (uint8_t)(player_y - bat_y) < BAT_HEIGHT_PIXELS)) {
+            return 1U;
+        }
+    }
+    return 0U;
 }
 
 void enemy_render(OamRenderer *renderer)

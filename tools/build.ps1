@@ -20,6 +20,8 @@ function Invoke-Checked {
 }
 
 function Build-Rom {
+    param([string]$PlayerInitialHpOverride = "")
+
     New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
 
     $cModules = @("main", "game", "input", "rng", "animation", "metasprite", "player", "soldier_animation_data", "weapon_sword", "enemy", "bat_animation_data", "xp_gem", "game_flow", "screen")
@@ -36,7 +38,12 @@ function Build-Rom {
     foreach ($module in $cModules) {
         $assembly = Join-Path $BuildDir "c_$module.s"
         $object = Join-Path $BuildDir "c_$module.o"
-        Invoke-Checked "cc65" @("-t", "nes", "-Oirs", "--standard", "c99", "--warnings-as-errors", "-I", "include", "--add-source", "-o", $assembly, "src/$module.c")
+        $compileArguments = @("-t", "nes", "-Oirs", "--standard", "c99", "--warnings-as-errors", "-I", "include")
+        if ($PlayerInitialHpOverride -ne "") {
+            $compileArguments += "-DPLAYER_INITIAL_HP=$PlayerInitialHpOverride"
+        }
+        $compileArguments += @("--add-source", "-o", $assembly, "src/$module.c")
+        Invoke-Checked "cc65" $compileArguments
         Invoke-Checked "ca65" @("-t", "nes", "--warnings-as-errors", "-I", "include", "-o", $object, $assembly)
         $objects.Add($object)
     }
@@ -97,10 +104,20 @@ try {
             Build-Rom
             Run-MesenRuntime "tests/mesen_game_states.lua" "mesen-game-states"
             Run-MesenRuntime
+            Run-MesenRuntime "tests/mesen_player_damage.lua" "mesen-player-damage"
         }
         "performance" {
-            Build-Rom
-            Run-MesenRuntime "tests/mesen_bat_stress.lua" "mesen-performance"
+            # The long-running load test needs the run to outlive repeated
+            # contacts. Only the tunable initial-HP immediate differs.
+            Build-Rom "255U"
+            try {
+                Run-MesenRuntime "tests/mesen_bat_stress.lua" "mesen-performance"
+            }
+            finally {
+                # Never leave the default output path containing the
+                # instrumentation ROM, even when the stress test fails.
+                Build-Rom
+            }
         }
     }
 }
