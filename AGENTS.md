@@ -66,10 +66,11 @@ Before concluding that a command-line tool is unavailable on Windows, verify it 
 
 For `make`, always run:
 
-```powershell
+```
 where.exe make
 Get-Command make -ErrorAction SilentlyContinue
 make --version
+```
 
 ## Source organization
 
