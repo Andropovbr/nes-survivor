@@ -21,9 +21,19 @@
 /* Player position is the top-left of a logical 24x24-pixel metasprite. */
 #define PLAYER_WIDTH_PIXELS    24U
 #define PLAYER_HEIGHT_PIXELS   24U
+/* Damage uses the lower body, excluding the rear scabbard/empty back area. */
+#define PLAYER_HITBOX_WIDTH_PIXELS          16U
+#define PLAYER_HITBOX_HEIGHT_PIXELS         16U
+#define PLAYER_HITBOX_Y_OFFSET_PIXELS        8U
+#define PLAYER_HITBOX_RIGHT_X_OFFSET_PIXELS  8U
+#define PLAYER_HITBOX_LEFT_X_OFFSET_PIXELS   0U
 #define PLAYER_INITIAL_X      116U
 #define PLAYER_INITIAL_Y      108U
 #define PLAYER_MOVEMENT_SPEED   1U /* pixels per axis per game frame */
+#ifndef PLAYER_INITIAL_HP
+#define PLAYER_INITIAL_HP        5U /* contact damage removes one HP */
+#endif
+#define PLAYER_HIT_COOLDOWN_FRAMES 30U /* invulnerability after contact */
 #define PLAYER_MIN_X            0U
 #define PLAYER_MAX_X          232U
 /* NES OAM Y stores screen Y minus one, so logical screen row zero is avoided. */

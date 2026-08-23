@@ -42,4 +42,13 @@ void nes_wait_frame(void);
  */
 uint8_t nes_read_controller(void);
 
+/*
+ * Assembly ABI: nes_play_player_hit_sfx
+ * Starts a short noise-channel impact using the APU length counter. No
+ * parameters or return. Clobbers A and processor flags; uses no RAM or zero
+ * page. Main-thread only and not reentrant. The project currently has no music
+ * engine or other active APU channel owner.
+ */
+void nes_play_player_hit_sfx(void);
+
 #endif

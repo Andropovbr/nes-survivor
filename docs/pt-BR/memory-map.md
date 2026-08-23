@@ -1,7 +1,7 @@
 # Mapa de memória e orçamentos
 
 As medições vêm de `build/nes-survivor.map`, gerado pelo cc65 2.19 após adicionar
-o pool fixo de gemas de XP.
+dano por contato no jogador e game over.
 
 ## Espaço de endereçamento da CPU e RAM interna
 
@@ -13,12 +13,12 @@ o pool fixo de gemas de XP.
 | `$0100-$01FF` | 256 | reserva da stack de hardware do 6502 |
 | `$0200-$02FF` | 256 | shadow de OAM, 64 sprites x 4 bytes |
 | `$0300-$0324` | 37 | dados inicializados do cc65 |
-| `$0325-$03A0` | 124 | globais BSS de C |
-| `$03A1-$04FF` | 351 | RAM geral livre |
+| `$0325-$03A4` | 128 | globais BSS de C |
+| `$03A5-$04FF` | 347 | RAM geral livre |
 | `$0500-$07FF` | 768 | stack de parâmetros do cc65 |
 
-A RAM estática/reservada soma 1.469 de 2.048 bytes, deixando 579 bytes livres:
-228 na zero page e 351 na RAM geral. Os intervalos de stack são reservas, não
+A RAM estática/reservada soma 1.473 de 2.048 bytes, deixando 575 bytes livres:
+228 na zero page e 347 na RAM geral. Os intervalos de stack são reservas, não
 medições de pico.
 
 ## Estado mutável e pools
@@ -32,12 +32,13 @@ medições de pico.
 | Pedido pendente de prompt para a NMI | 1 | BSS |
 | Entrada atual/pressionada/solta | 3 | BSS |
 | Estado do RNG | 2 | BSS |
-| Posição/orientação/animação do player | 7 | BSS |
+| Posição/HP/cooldown/orientação/animação do player | 9 | BSS |
 | Timers de atividade/cooldown da espada | 2 | BSS |
 | Pool de Bats | 48 | BSS, 12 entradas x 4 bytes |
-| Estado compartilhado de spawn/movimento/animação/separação/colisão | 15 | BSS |
+| Estado compartilhado de spawn/movimento/animação/separação/colisão | 16 | BSS |
 | Pool de gemas de XP | 40 | BSS, 8 entradas x 5 bytes |
 | Limite de varredura e cursor de coleta das gemas | 2 | BSS |
+| Fase do escalonador de colisões de gameplay | 1 | BSS |
 
 Cada Bat armazena X/Y em pixels, uma flag ativa e a orientação horizontal. Um acumulador Q4 compartilhado
 gera passos inteiros, e um frame/timer compartilhado anima todos em sincronia. A alocação
@@ -65,18 +66,18 @@ rotação de flicker.
 | Região | Conteúdo utilizado | Capacidade | Notas |
 | --- | ---: | ---: | --- |
 | Cabeçalho iNES | 16 bytes | 16 bytes | mapper 0, NROM-256 |
-| PRG-ROM | 7.994 bytes | 32.768 bytes | 24,40%; 24.774 bytes livres |
-| CHR-ROM | 608 bytes de tiles com significado | 8.192 bytes | 21 tiles de sprite + 17 glifos maiúsculos não vazios |
+| PRG-ROM | 8.403 bytes | 32.768 bytes | 25,64%; 24.365 bytes livres |
+| CHR-ROM | 624 bytes de tiles com significado | 8.192 bytes | 21 tiles de sprite + 18 glifos maiúsculos não vazios |
 | Arquivo `.nes` | 40.976 bytes | 40.976 bytes | cabeçalho + PRG + CHR |
 
-O PRG inclui 220 bytes de startup, 12 de construtores, 7.500 de código/runtime,
-219 de RODATA, 37 de imagem DATA e seis de vetores. Esta mudança acrescenta 951
-bytes de PRG e 43 bytes de BSS sobre a baseline documentada; zero page, DATA,
-shadow de OAM e stacks permanecem inalterados.
+O PRG inclui 220 bytes de startup, 12 de construtores, 7.899 de código/runtime,
+229 de RODATA, 37 de imagem DATA e seis de vetores. O dano no jogador acrescenta
+409 bytes de PRG e quatro bytes de BSS ao mapa anterior; zero page, DATA, shadow
+de OAM, CHR e stacks permanecem inalterados.
 
 Os primeiros 4 KiB de `assets/game.chr` fornecem sprites: Soldier usa `$00-$07`,
 a espada animada `$08-$09`, Bat `$0A-$0D` e a gema `$14`. `src/chr.s` fornece
-17 glifos ASCII maiúsculos não vazios na tabela de background `$1000`, nos
+18 glifos ASCII maiúsculos não vazios na tabela de background `$1000`, nos
 próprios códigos; o tile de espaço e todos os patterns restantes ficam vazios.
 
 ## Orçamento de tempo
@@ -107,8 +108,9 @@ A primeira integração das gemas verificava os oito slots de coleta em todo
 frame, e o stress com 12 Bats perdeu oito updates durante a espada ativa.
 Escalonar apenas a coleta não recuperou o orçamento. Alternar índices pares e
 ímpares da hitbox reduziu o pico, ainda verificando cada Bat em até dois frames
-ativos. Medição final: 1.750 frames de vídeo, 12 Bats, ao menos uma gema, 1.735
-NMIs/updates e zero perda. Os ciclos não foram medidos separadamente.
+ativos. A build final de performance sobrescreve somente o HP inicial para 255,
+impedindo que o contato encerre a carga. Medição: 1.750 frames, 12 Bats, duas
+gemas, 1.735 NMIs/updates e zero perda. Os ciclos não foram medidos separadamente.
 
 As trocas completas de nametable desabilitam intencionalmente NMI e renderização
 durante a escrita de 1.024 bytes e do texto fixo. O runtime de 450 frames no

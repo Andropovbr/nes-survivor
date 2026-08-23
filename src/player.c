@@ -8,12 +8,33 @@
 typedef struct {
     uint8_t x;
     uint8_t y;
+    uint8_t hp;
+    uint8_t hit_cooldown;
     PlayerFacing facing;
     uint8_t moving;
     AnimationPlayer animation;
 } PlayerState;
 
 static PlayerState player;
+
+#if PLAYER_INITIAL_HP == 0U || PLAYER_INITIAL_HP > UINT8_MAX
+#error "Player initial HP must fit in one byte and be nonzero"
+#endif
+
+#if PLAYER_HIT_COOLDOWN_FRAMES == 0U || \
+    PLAYER_HIT_COOLDOWN_FRAMES > UINT8_MAX
+#error "Player hit cooldown must fit in one byte and be nonzero"
+#endif
+
+#if PLAYER_HITBOX_WIDTH_PIXELS == 0U || PLAYER_HITBOX_HEIGHT_PIXELS == 0U || \
+    PLAYER_HITBOX_RIGHT_X_OFFSET_PIXELS + PLAYER_HITBOX_WIDTH_PIXELS > \
+        PLAYER_WIDTH_PIXELS || \
+    PLAYER_HITBOX_LEFT_X_OFFSET_PIXELS + PLAYER_HITBOX_WIDTH_PIXELS > \
+        PLAYER_WIDTH_PIXELS || \
+    PLAYER_HITBOX_Y_OFFSET_PIXELS + PLAYER_HITBOX_HEIGHT_PIXELS > \
+        PLAYER_HEIGHT_PIXELS
+#error "Player damage hitbox must remain inside the logical metasprite"
+#endif
 
 static uint8_t selected_animation(void)
 {
@@ -27,19 +48,25 @@ void player_init(void)
 {
     player.x = PLAYER_INITIAL_X;
     player.y = PLAYER_INITIAL_Y;
+    player.hp = PLAYER_INITIAL_HP;
+    player.hit_cooldown = 0U;
     player.facing = PLAYER_FACING_RIGHT;
     player.moving = 0U;
     animation_player_init(&player.animation, &soldier_animation_data,
                           SOLDIER_ANIMATION_IDLE);
 }
 
-void player_update(uint8_t buttons)
+uint8_t player_update(uint8_t buttons)
 {
     uint8_t move_left = (uint8_t)((buttons & BUTTON_LEFT) != 0U);
     uint8_t move_right = (uint8_t)((buttons & BUTTON_RIGHT) != 0U);
     uint8_t move_up = (uint8_t)((buttons & BUTTON_UP) != 0U);
     uint8_t move_down = (uint8_t)((buttons & BUTTON_DOWN) != 0U);
     uint8_t changed_animation;
+
+    if (player.hit_cooldown != 0U) {
+        --player.hit_cooldown;
+    }
 
     if (move_left != 0U && move_right == 0U) {
         player.facing = PLAYER_FACING_LEFT;
@@ -86,6 +113,18 @@ void player_update(uint8_t buttons)
     if (changed_animation == 0U) {
         animation_player_update(&player.animation, &soldier_animation_data);
     }
+    return (uint8_t)(player.hit_cooldown == 0U);
+}
+
+uint8_t player_take_contact_damage(void)
+{
+    if (player.hp == 0U || player.hit_cooldown != 0U) {
+        return 0U;
+    }
+
+    --player.hp;
+    player.hit_cooldown = PLAYER_HIT_COOLDOWN_FRAMES;
+    return 1U;
 }
 
 void player_render(OamRenderer *renderer)
@@ -108,6 +147,19 @@ void player_render(OamRenderer *renderer)
 
 uint8_t player_x(void) { return player.x; }
 uint8_t player_y(void) { return player.y; }
+uint8_t player_hitbox_x(void)
+{
+    return (uint8_t)(player.x +
+                     (player.facing == PLAYER_FACING_LEFT
+                          ? PLAYER_HITBOX_LEFT_X_OFFSET_PIXELS
+                          : PLAYER_HITBOX_RIGHT_X_OFFSET_PIXELS));
+}
+uint8_t player_hitbox_y(void)
+{
+    return (uint8_t)(player.y + PLAYER_HITBOX_Y_OFFSET_PIXELS);
+}
+uint8_t player_hp(void) { return player.hp; }
+uint8_t player_hit_cooldown(void) { return player.hit_cooldown; }
 PlayerFacing player_facing(void) { return player.facing; }
 uint8_t player_is_moving(void) { return player.moving; }
 uint8_t player_current_animation(void) { return player.animation.animation; }

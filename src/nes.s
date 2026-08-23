@@ -2,10 +2,15 @@
 
 .export _nes_wait_frame
 .export _nes_read_controller
+.export _nes_play_player_hit_sfx
 .export _oam_shadow
 .exportzp _nes_frame_counter
 
 JOY1 = $4016
+APUSTATUS = $4015
+NOISE_VOLUME = $400C
+NOISE_PERIOD = $400E
+NOISE_LENGTH = $400F
 
 .segment "ZEROPAGE"
 _nes_frame_counter: .res 1
@@ -25,6 +30,21 @@ _oam_shadow: .res 256
 @wait:
     cmp _nes_frame_counter
     beq @wait
+    rts
+.endproc
+
+; void nes_play_player_hit_sfx(void)
+; Input/return: none. Clobbers A and flags. Uses no RAM/ZP.
+; Main-thread only. A short hardware length counter bounds the effect.
+.proc _nes_play_player_hit_sfx
+    lda #%00001000          ; enable only the currently owned noise channel
+    sta APUSTATUS
+    lda #%00011100          ; constant-volume impact at volume 12
+    sta NOISE_VOLUME
+    lda #%00000100          ; short-mode off, bright low-period noise
+    sta NOISE_PERIOD
+    lda #%00010000          ; length index 2: about ten NTSC video frames
+    sta NOISE_LENGTH
     rts
 .endproc
 

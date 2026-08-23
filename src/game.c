@@ -12,6 +12,7 @@
 #include "xp_gem.h"
 
 static OamRenderer oam_renderer;
+static uint8_t collision_phase;
 
 static void gameplay_init(void)
 {
@@ -19,6 +20,7 @@ static void gameplay_init(void)
     weapon_sword_init();
     enemy_init();
     xp_gem_init();
+    collision_phase = 0U;
     oam_renderer_init(&oam_renderer);
     player_render(&oam_renderer);
     (void)weapon_sword_render(
@@ -63,18 +65,39 @@ void game_update(void)
 {
     WeaponSwordHitbox sword_hitbox;
     uint8_t facing_left;
+    uint8_t player_vulnerable;
+    uint8_t sword_active;
 
-    player_update(input_current());
+    if (game_flow_state() != GAME_STATE_PLAYING) {
+        initial_screens_update();
+        return;
+    }
+
+    player_vulnerable = player_update(input_current());
     weapon_sword_update();
     facing_left = (uint8_t)(player_facing() == PLAYER_FACING_LEFT);
     enemy_update((uint8_t)(player_x() +
                            (PLAYER_WIDTH_PIXELS - BAT_WIDTH_PIXELS) / 2U),
                  (uint8_t)(player_y() +
                            (PLAYER_HEIGHT_PIXELS - BAT_HEIGHT_PIXELS) / 2U));
-    if (weapon_sword_hitbox(&sword_hitbox, player_x(), player_y(),
-                            facing_left) != 0U) {
+    sword_active = weapon_sword_hitbox(
+        &sword_hitbox, player_x(), player_y(), facing_left);
+    if (player_vulnerable != 0U &&
+        (sword_active == 0U || collision_phase == 0U) &&
+        enemy_overlaps_player(player_hitbox_x(), player_hitbox_y()) != 0U &&
+        player_take_contact_damage() != 0U) {
+        nes_play_player_hit_sfx();
+        if (player_hp() == 0U) {
+            game_flow_enter_game_over();
+            screen_show_game_over();
+            return;
+        }
+    }
+    if (sword_active != 0U &&
+        (player_vulnerable == 0U || collision_phase != 0U)) {
         enemy_apply_sword_hitbox(&sword_hitbox);
     }
+    collision_phase ^= 1U;
     xp_gem_update(player_x(), player_y());
     oam_renderer_begin(&oam_renderer);
     player_render(&oam_renderer);

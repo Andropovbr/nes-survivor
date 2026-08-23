@@ -10,7 +10,7 @@ A máquina de estados foi introduzida agora para que a entrada da run tenha um
 fluxo previsível sem espalhar condições pelo loop de gameplay:
 
 ```text
-PRESENTED_BY -> TITLE -> PLAYING
+PRESENTED_BY -> TITLE -> PLAYING -> GAME_OVER -> TITLE
 ```
 
 ## Estados e transições
@@ -38,6 +38,10 @@ Somente outra borda de START muda o estado para `PLAYING`. Nesse ponto
 espada, pool de inimigos e primeira imagem da shadow de OAM. Esses sistemas não
 existem durante as telas iniciais.
 
+Durante gameplay, HP zero entra explicitamente em `GAME_OVER`. A tela limpa a
+nametable e escreve `GAME OVER`; uma borda de START chama `enter_title()`. É
+necessário outro novo pressionamento para iniciar uma run e restaurar HP/pools.
+
 ## START recém-pressionado
 
 O input já mantinha as máscaras atual, pressionada e solta. A máquina recebe
@@ -53,13 +57,13 @@ amostras reais do módulo de input com `game_flow_update()` para cobrir esse cas
 
 ## Nametable, fonte e segurança da PPU
 
-`screen.c` fornece apenas as quatro operações necessárias: montar crédito,
-montar title, alternar o prompt e limpar para gameplay. Os textos são arrays
+`screen.c` fornece as operações necessárias para montar crédito, title e game
+over, alternar o prompt e limpar para gameplay. Os textos são arrays
 ASCII e seus valores são escritos diretamente como índices de tiles. As colunas
 foram escolhidas a partir da largura de 32 tiles para centralização visual.
 
 Os primeiros 4 KiB de CHR continuam sendo o banco de sprites existente. A
-segunda pattern table contém 17 glifos não vazios de um bitplane nos códigos
+segunda pattern table contém 18 glifos não vazios de um bitplane nos códigos
 ASCII maiúsculos usados por `PRESENTED BY`, `CODIGO E CARTUCHO`, `NES SURVIVOR`
 e `PRESS START`. Isso não usa sprites e não sofre o limite de oito sprites por
 scanline.
@@ -127,24 +131,19 @@ seleciona a Pattern Table 1 para background e o bit 3 limpo mantém sprites na
 Pattern Table 0. Os valores ASCII escritos na nametable continuam sendo índices
 de 8 bits; quem acrescenta a base `$1000` à busca de background é a PPU.
 
-## Preservação do hot path
+## Dispatcher e preservação do hot path
 
-Uma primeira integração consultava o estado antes de toda atualização de
-gameplay. Mesmo esse custo pequeno voltou a produzir frames perdidos no cenário
-de 12 Bats. A forma final executa os estados iniciais dentro de `game_init()`;
-ao entrar em `PLAYING`, a função retorna e `main()` usa o loop de gameplay já
-medido, sem despacho recorrente.
-
-Essa decisão permite acrescentar seleção de personagem e outros estados pré-run
-no coordenador frio. Pause, level-up e game over, por interromperem uma run,
-precisarão de um dispatcher de runtime medido em um marco futuro. Nenhum desses
-estados foi antecipado aqui.
+Os estados iniciais continuam dentro de `game_init()`. Como game over interrompe
+uma run, `game_update()` agora faz uma verificação antecipada: `PLAYING` segue o
+hot path e qualquer outro estado chama o coordenador frio e retorna. O custo foi
+incluído no stress final. O trabalho mais pesado de colisão foi escalonado; a
+medição com 12 Bats permaneceu sem updates perdidos.
 
 ## Trechos úteis para vídeo
 
 Os pontos mais representativos são:
 
-- o `switch` de `game_flow_update()`, que mostra as três políticas explícitas;
+- o `switch` de `game_flow_update()`, que mostra as quatro políticas explícitas;
 - o cálculo de borda em `input_apply_sample()`;
 - `initial_screens_update()`, onde a mudança de estado dispara a entrada de tela;
 - `screen_show_title()`, que mostra a sequência PPU segura;
@@ -158,18 +157,19 @@ Os pontos mais representativos são:
 
 Medidos no mapa final do linker:
 
-- PRG-ROM total atual: 7.994 bytes; o marco de telas isolado media 7.043 bytes;
-- BSS total atual: 124 bytes; o marco de telas isolado media 81 bytes;
+- PRG-ROM total atual: 8.403 bytes; o marco de telas isolado media 7.043 bytes;
+- BSS total atual: 128 bytes; o marco de telas isolado media 81 bytes;
 - zero page, DATA, OAM e stacks: inalterados;
 - OAM: inalterada; as telas iniciais ocultam todas as 64 entradas;
-- CHR com significado: 21 tiles de sprite e 17 glifos maiúsculos não vazios.
+- CHR com significado: 21 tiles de sprite e 18 glifos maiúsculos não vazios.
 
-Medido no Mesen 2.2.1: o stress de 1.750 frames saturou 12 Bats, observou uma
-gema e registrou
+Medido no Mesen 2.2.1: o stress de 1.750 frames saturou 12 Bats, observou duas
+gemas e registrou
 1.735 atualizações/NMIs de gameplay após a baseline de transição, sem perda. O
 teste de telas confirmou textos, OAM oculto, START mantido, vários ciclos de
 blink sem estado parcial, ausência de writes em `$2000/$2001` durante o blink,
-`PPUCTRL=$90`, glifo na Pattern Table 1 e entrada na run. O PPU Viewer gráfico
+`PPUCTRL=$90`, glifo na Pattern Table 1 e entrada na run. Um teste adicional
+confirmou cinco impactos, writes do APU, game over e retorno ao título. O PPU Viewer gráfico
 ainda deve ser inspecionado manualmente; o teste headless verifica o mesmo estado
 por memória e callbacks, mas não substitui a observação humana do quadro.
 
@@ -179,6 +179,6 @@ por memória e callbacks, mas não substitui a observação humana do quadro.
   de um frame enquanto a nametable completa é limpa.
 - O texto é fixo, monocromático e cobre somente os glifos usados agora.
 - A duração usa NTSC; PAL/Dendy ainda não possui adaptação.
-- Não há fade, áudio, menu nem seleção de personagem.
-- Estados que interrompam gameplay exigirão desenho e medição próprios do
-  dispatcher, sem assumir que o custo é gratuito.
+- Não há fade, menu nem seleção de personagem; o áudio se limita ao impacto.
+- O dispatcher de game over foi medido; pause e level-up ainda exigirão desenho
+  e medição próprios, sem assumir custo gratuito.

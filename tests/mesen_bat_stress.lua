@@ -1,5 +1,8 @@
 -- Mesen 2 performance regression test with four or more simultaneous Bats.
--- Run with: Mesen --testrunner build/nes-survivor.nes tests/mesen_bat_stress.lua
+-- The performance build overrides initial HP to 255 so contact damage cannot
+-- end this long-running load scenario; release/default builds still use 5 HP.
+-- Run through make test-performance or tools/build.ps1 performance so the HP
+-- override is applied safely.
 
 local endFrames = 0
 local nmis = 0

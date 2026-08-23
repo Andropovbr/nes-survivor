@@ -27,7 +27,9 @@ seconds, then every two seconds, and pursue the player at an average 0.375 pixel
 per axis per frame. Every defeated Bat leaves an 8x8 XP gem at its position.
 Touching the player removes the gem; XP totals and progression are not yet
 implemented. Up to eight gems are visible, with excess drops condensed into
-the nearest active gem.
+the nearest active gem. Enemy contact uses a facing-aware 16x16 lower-body
+hitbox, removes one of the player's five HP and starts 30 frames of invulnerability. The fifth hit plays a short noise-channel
+impact and opens `GAME OVER`; START returns to the title screen.
 
 The NROM foundation still performs bounded OAM DMA in NMI and runs controller,
 player, animation and OAM construction logic in the synchronized C main loop.
@@ -56,9 +58,10 @@ make clean
 The ROM is generated at `build/nes-survivor.nes`; the linker map and labels are
 generated beside it. `make test` executes the C logic tests through cc65's
 `sim65` and validates the built iNES cartridge with Python.
-`make test-runtime` is optional and first validates the initial screens for 175
-frames, then runs the gameplay ROM for 450 frames with Mesen 2's headless Lua
-test runner. `make test-performance` runs a 1,750-frame stress test,
+`make test-runtime` is optional and validates the initial screens, gameplay,
+five contact hits, APU writes, game over and return to title with Mesen 2's
+headless Lua test runner. `make test-performance` builds a separately located
+255-HP instrumentation ROM and runs a 1,750-frame stress test,
 fills all 12 Bat slots, observes a gem drop and fails if the gameplay loop
 misses an NMI.
 
@@ -90,7 +93,8 @@ Controller 1 is sampled every frame. The D-pad moves one pixel per axis per game
 frame, including diagonals. Left and Right update horizontal facing; Up and Down
 alone preserve it. Releasing the D-pad returns to idle while preserving facing.
 START skips the credit and starts a run from the title screen, but only on a
-newly pressed edge; holding it cannot cross both screens. A, B and Select have
+newly pressed edge; holding it cannot cross both screens. On `GAME OVER`, START
+returns to the title. A, B and Select have
 no action yet. The sword attacks automatically and requires no button.
 
 ## Hardware target and limitations
@@ -99,9 +103,9 @@ no action yet. The sword attacks automatically and requires no button.
 - horizontal nametable mirroring
 - NTSC timing assumption (60 frames per second)
 - one fixed screen with scrolling held at zero
-- no audio and no PAL/Dendy timing adaptation yet
+- one noise-channel player-hit effect; no music or PAL/Dendy timing adaptation
 - one player character, one automatic sword and one enemy type; no player
-  damage, XP gain, wave transitions, HUD or progression yet
+  HP HUD, XP gain, wave transitions or progression yet
 - diagonals intentionally use the full one-pixel speed on both axes
 - player and active sword consume 9 OAM slots; 12 Bats plus eight gems raise
   the worst case to 41/64, and overlapping objects may flicker due to the
