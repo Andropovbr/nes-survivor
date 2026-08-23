@@ -18,12 +18,18 @@
 #define TITLE_PROMPT_ROW       16U
 #define TITLE_PROMPT_COLUMN    10U
 
+#define TITLE_PROMPT_UPDATE_NONE 0U
+#define TITLE_PROMPT_UPDATE_SHOW 1U
+#define TITLE_PROMPT_UPDATE_HIDE 2U
+
 #define PPU_REGISTER(address) (*(volatile uint8_t *)(address))
 
 static const uint8_t presented_by_text[] = "Presented by";
 static const uint8_t credit_text[] = "Codigo e Cartucho";
 static const uint8_t title_text[] = "NES Survivor";
-static const uint8_t title_prompt_text[] = "Press Start";
+/* NMI reads these symbols directly for the fixed 11-tile VBlank update. */
+const uint8_t screen_title_prompt_text[] = "Press Start";
+volatile uint8_t screen_title_prompt_update;
 
 static void ppu_set_address(uint16_t address)
 {
@@ -85,20 +91,6 @@ static void screen_write_text(uint8_t row, uint8_t column,
     }
 }
 
-static void screen_write_blank_text(uint8_t row, uint8_t column,
-                                    const uint8_t *text)
-{
-    uint16_t address = (uint16_t)(SCREEN_NAMETABLE_BASE +
-                                  (uint16_t)row * SCREEN_TILE_COLUMNS +
-                                  column);
-
-    ppu_set_address(address);
-    while (*text != 0U) {
-        PPU_REGISTER(NES_PPUDATA) = SCREEN_BLANK_TILE;
-        ++text;
-    }
-}
-
 static void screen_hide_all_sprites(void)
 {
     uint8_t sprite;
@@ -110,6 +102,7 @@ static void screen_hide_all_sprites(void)
 
 void screen_show_presented_by(void)
 {
+    screen_title_prompt_update = TITLE_PROMPT_UPDATE_NONE;
     screen_disable_rendering();
     screen_hide_all_sprites();
     screen_clear_nametable();
@@ -123,34 +116,31 @@ void screen_show_presented_by(void)
 
 void screen_show_title(void)
 {
+    screen_title_prompt_update = TITLE_PROMPT_UPDATE_NONE;
     screen_disable_rendering();
     screen_hide_all_sprites();
     screen_clear_nametable();
     screen_load_background_palette();
     screen_write_text(TITLE_ROW, TITLE_COLUMN, title_text);
     screen_write_text(TITLE_PROMPT_ROW, TITLE_PROMPT_COLUMN,
-                      title_prompt_text);
+                      screen_title_prompt_text);
     screen_wait_for_vblank();
     screen_enable_rendering();
 }
 
 void screen_set_title_prompt_visible(uint8_t visible)
 {
-    /* The update is only 11 tiles, but disabling rendering also prevents a
-     * PPU address-latch race if a future title update grows toward VBlank. */
-    screen_disable_rendering();
+    /* NMI consumes this mode on the next VBlank and writes all 11 tiles. */
     if (visible != 0U) {
-        screen_write_text(TITLE_PROMPT_ROW, TITLE_PROMPT_COLUMN,
-                          title_prompt_text);
+        screen_title_prompt_update = TITLE_PROMPT_UPDATE_SHOW;
     } else {
-        screen_write_blank_text(TITLE_PROMPT_ROW, TITLE_PROMPT_COLUMN,
-                                title_prompt_text);
+        screen_title_prompt_update = TITLE_PROMPT_UPDATE_HIDE;
     }
-    screen_enable_rendering();
 }
 
 void screen_show_gameplay(void)
 {
+    screen_title_prompt_update = TITLE_PROMPT_UPDATE_NONE;
     screen_disable_rendering();
     screen_hide_all_sprites();
     screen_clear_nametable();

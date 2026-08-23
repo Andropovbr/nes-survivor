@@ -23,6 +23,18 @@
 #error "unexpected fixed-width integer representation"
 #endif
 
+#if (NES_PPUCTRL_GAME & NES_PPUCTRL_BACKGROUND_TABLE_1000) == 0U
+#error "background must use pattern table 1 at $1000"
+#endif
+
+#if (NES_PPUCTRL_GAME & NES_PPUCTRL_SPRITE_TABLE_1000) != 0U
+#error "sprites must use pattern table 0 at $0000"
+#endif
+
+#if NES_PPUCTRL_GAME != 0x90U
+#error "game PPUCTRL must enable NMI with BG $1000 and sprites $0000"
+#endif
+
 static uint8_t failures;
 
 /* Page alignment matters only in the NES linker target, not pure logic tests. */

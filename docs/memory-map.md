@@ -13,12 +13,12 @@ adding the first explicit initial-screen state machine.
 | `$0100-$01FF` | 256 | 6502 hardware stack reservation |
 | `$0200-$02FF` | 256 | page-aligned OAM shadow, 64 sprites x 4 bytes |
 | `$0300-$0324` | 37 | cc65 initialized runtime data |
-| `$0325-$0374` | 80 | C BSS globals |
-| `$0375-$04FF` | 395 | free general RAM |
+| `$0325-$0375` | 81 | C BSS globals |
+| `$0376-$04FF` | 394 | free general RAM |
 | `$0500-$07FF` | 768 | cc65 software parameter stack |
 
-Static/reserved internal RAM is 1,425 of 2,048 bytes, leaving 623 bytes
-unassigned: 228 zero-page bytes and 395 general bytes. Stack ranges are budgets,
+Static/reserved internal RAM is 1,426 of 2,048 bytes, leaving 622 bytes
+unassigned: 228 zero-page bytes and 394 general bytes. Stack ranges are budgets,
 not measured high-water usage.
 
 ## Mutable state and pools
@@ -29,6 +29,7 @@ not measured high-water usage.
 | cc65 zero-page runtime | 26 | zero page `$0004-$001D` |
 | OAM cursor | 1 | BSS |
 | initial game state, countdown and blink flag | 3 | BSS |
+| pending title-prompt NMI update | 1 | BSS |
 | input current/pressed/released | 3 | BSS |
 | RNG state | 2 | BSS |
 | player position/facing/movement/playback | 7 | BSS |
@@ -57,13 +58,13 @@ and active sword retain priority, but enemy flicker rotation is not implemented.
 | Region | Used content | Capacity | Notes |
 | --- | ---: | ---: | --- |
 | iNES header | 16 bytes | 16 bytes | mapper 0, NROM-256 |
-| PRG-ROM | 7,099 bytes | 32,768 bytes | 21.66%; 25,669 bytes free |
+| PRG-ROM | 7,043 bytes | 32,768 bytes | 21.49%; 25,725 bytes free |
 | CHR-ROM | 560 meaningful tile bytes | 8,192 bytes | 14 sprite tiles + 21 nonblank text glyphs |
 | Total `.nes` file | 40,976 bytes | 40,976 bytes | header + PRG + CHR |
 
-PRG usage includes 220 startup bytes, 12 constructor-startup bytes, 6,605
+PRG usage includes 220 startup bytes, 12 constructor-startup bytes, 6,549
 code/runtime bytes, 219 RODATA bytes, 37 DATA-image bytes and six vector bytes.
-The change adds 894 PRG bytes and two BSS bytes relative to the prior map; zero
+The state-machine branch adds 838 PRG bytes and three BSS bytes relative to its base; zero
 page, DATA, OAM and stacks are unchanged.
 
 The first 4 KiB of `assets/game.chr` supplies sprites: Soldier uses `$00-$07`,
@@ -73,10 +74,11 @@ the reserved space tile and all other unused patterns are blank.
 
 ## Timing budgets
 
-NMI remains bounded to one OAM DMA plus constant bookkeeping, approximately 583
-CPU cycles including interrupt entry. Gameplay, collisions and OAM construction
-run outside NMI. OAM initialization hides all 64 entries once; subsequent frame
-construction hides only entries used by the previous frame.
+NMI remains bounded to one OAM DMA plus constant bookkeeping, approximately 590
+CPU cycles including interrupt entry when no VRAM update is pending. Showing the
+11-tile title prompt costs approximately 788 cycles total; hiding it is cheaper.
+Gameplay, collisions and OAM construction run outside NMI. OAM initialization
+hides all 64 entries once; later construction hides only prior used entries.
 
 Before optimization, the 850-frame stress case lost 171 gameplay updates after
 the third Bat. The current 1,750-frame test compensates for the initial screens,
@@ -98,5 +100,6 @@ result with horizontal flipping enabled.
 Full nametable transitions intentionally disable NMI and rendering while 1,024
 bytes plus fixed text are written. The 450-frame Mesen runtime observed 435
 NMIs, with the difference covering reset stabilization and the bounded screen
-transitions. Blink updates write 11 tiles only. Their cycle counts were not
-measured separately; no timing claim beyond the runtime observations is made.
+transitions. Blink updates now execute as one bounded NMI transfer without
+toggling rendering; their cycle counts are generated-code estimates, not emulator
+cycle-profiler measurements.

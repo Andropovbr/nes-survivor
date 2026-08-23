@@ -13,12 +13,12 @@ a primeira máquina explícita de estados para as telas iniciais.
 | `$0100-$01FF` | 256 | reserva da stack de hardware do 6502 |
 | `$0200-$02FF` | 256 | shadow de OAM, 64 sprites x 4 bytes |
 | `$0300-$0324` | 37 | dados inicializados do cc65 |
-| `$0325-$0374` | 80 | globais BSS de C |
-| `$0375-$04FF` | 395 | RAM geral livre |
+| `$0325-$0375` | 81 | globais BSS de C |
+| `$0376-$04FF` | 394 | RAM geral livre |
 | `$0500-$07FF` | 768 | stack de parâmetros do cc65 |
 
-A RAM estática/reservada soma 1.425 de 2.048 bytes, deixando 623 bytes livres:
-228 na zero page e 395 na RAM geral. Os intervalos de stack são reservas, não
+A RAM estática/reservada soma 1.426 de 2.048 bytes, deixando 622 bytes livres:
+228 na zero page e 394 na RAM geral. Os intervalos de stack são reservas, não
 medições de pico.
 
 ## Estado mutável e pools
@@ -29,6 +29,7 @@ medições de pico.
 | Runtime de zero page do cc65 | 26 | zero page `$0004-$001D` |
 | Cursor de OAM | 1 | BSS |
 | Estado inicial, countdown e flag de blink | 3 | BSS |
+| Pedido pendente de prompt para a NMI | 1 | BSS |
 | Entrada atual/pressionada/solta | 3 | BSS |
 | Estado do RNG | 2 | BSS |
 | Posição/orientação/animação do player | 7 | BSS |
@@ -57,13 +58,13 @@ mantêm prioridade, mas ainda não há rotação de flicker dos inimigos.
 | Região | Conteúdo utilizado | Capacidade | Notas |
 | --- | ---: | ---: | --- |
 | Cabeçalho iNES | 16 bytes | 16 bytes | mapper 0, NROM-256 |
-| PRG-ROM | 7.099 bytes | 32.768 bytes | 21,66%; 25.669 bytes livres |
+| PRG-ROM | 7.043 bytes | 32.768 bytes | 21,49%; 25.725 bytes livres |
 | CHR-ROM | 560 bytes de tiles com significado | 8.192 bytes | 14 tiles de sprite + 21 glifos não vazios |
 | Arquivo `.nes` | 40.976 bytes | 40.976 bytes | cabeçalho + PRG + CHR |
 
-O PRG inclui 220 bytes de startup, 12 de construtores, 6.605 de código/runtime,
-219 de RODATA, 37 de imagem DATA e seis de vetores. A mudança acrescenta 894
-bytes de PRG e dois bytes de BSS em relação ao mapa anterior; zero page, DATA,
+O PRG inclui 220 bytes de startup, 12 de construtores, 6.549 de código/runtime,
+219 de RODATA, 37 de imagem DATA e seis de vetores. A branch da máquina acrescenta 838
+bytes de PRG e três bytes de BSS em relação à base; zero page, DATA,
 OAM e stacks permanecem inalterados.
 
 Os primeiros 4 KiB de `assets/game.chr` fornecem sprites: Soldier usa `$00-$07`,
@@ -73,10 +74,10 @@ o tile de espaço reservado e todos os patterns restantes ficam vazios.
 
 ## Orçamento de tempo
 
-A NMI continua limitada a um DMA de OAM e trabalho constante, cerca de 583
-ciclos incluindo a entrada da interrupção. Gameplay, colisões e construção de
-OAM rodam fora da NMI. A inicialização oculta as 64 entradas uma vez; cada frame
-seguinte oculta somente as entradas utilizadas anteriormente.
+A NMI continua limitada a um DMA de OAM e trabalho constante, cerca de 590
+ciclos incluindo a entrada quando não existe update de VRAM pendente. Mostrar
+os 11 tiles do prompt usa aproximadamente 788 ciclos totais; ocultá-los custa
+menos. Gameplay, colisões e construção de OAM rodam fora da NMI.
 
 Antes da otimização, o teste de 850 frames perdeu 171 atualizações após o terceiro
 Bat. O teste atual de 1.750 frames compensa as telas iniciais, satura os 12 slots
@@ -98,5 +99,6 @@ resultado de estresse sem perdas com flip horizontal habilitado.
 As trocas completas de nametable desabilitam intencionalmente NMI e renderização
 durante a escrita de 1.024 bytes e do texto fixo. O runtime de 450 frames no
 Mesen observou 435 NMIs; a diferença cobre a estabilização do reset e as trocas
-delimitadas. O blink escreve apenas 11 tiles. Seus ciclos não foram medidos
-separadamente; nenhuma afirmação de tempo além dessas observações é feita.
+delimitadas. O blink agora ocorre em uma transferência delimitada na NMI sem
+alternar a renderização; os ciclos são estimativas pelo código gerado, não uma
+medição do profiler de ciclos do emulador.

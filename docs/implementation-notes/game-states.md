@@ -66,9 +66,66 @@ scanline.
 
 Uma troca completa desabilita NMI e renderização antes de limpar os 1.024 bytes
 da nametable e escrever o texto. Depois aguarda o próximo VBlank, restaura
-scroll zero, `PPUCTRL=$90` e `PPUMASK=$1E`. O blink modifica somente os 11 tiles do prompt no limite
-sincronizado do frame, mas usa a mesma proteção para não deixar corrida no latch
-compartilhado de `PPUADDR`/`PPUSCROLL`.
+scroll zero, `PPUCTRL=$90` e `PPUMASK=$1E`.
+
+## Correção do blink e atualização curta de VRAM
+
+A primeira versão desligava e religava `PPUCTRL`/`PPUMASK` em cada meio-ciclo do
+blink. A thread principal acordava após a NMI, mas o tempo de input, máquina de
+estados e C gerado não garantia que a renderização seria religada ainda dentro
+do VBlank. Se a PPU retomasse no quadro visível depois das escritas em `$2006`,
+o endereço interno ainda podia refletir `$220A`; antes da restauração normal do
+scroll no próximo pre-render scanline, partes do texto eram buscadas em outra
+posição. O sintoma era um fragmento próximo ao topo antes do prompt correto.
+
+Desligar rendering periodicamente também era desnecessário para 11 tiles. A
+função agora apenas publica um pedido de um byte:
+
+```c
+screen_title_prompt_update = visible != 0U
+    ? TITLE_PROMPT_UPDATE_SHOW
+    : TITLE_PROMPT_UPDATE_HIDE;
+```
+
+Na NMI seguinte, depois do DMA de OAM, o handler reinicia o latch compartilhado,
+define o endereço fixo e escreve o prompt inteiro durante VBlank:
+
+```asm
+lda PPUSTATUS
+lda #>TITLE_PROMPT_ADDRESS
+sta PPUADDR
+lda #<TITLE_PROMPT_ADDRESS
+sta PPUADDR
+```
+
+O endereço é `$220A`, correspondente à nametable `$2000`, linha 16 e coluna 10.
+Mostrar copia os 11 índices ASCII de `screen_title_prompt_text`; ocultar escreve
+11 tiles zero. A flag só é limpa depois da transferência completa, e as duas
+escritas de `PPUSCROLL` continuam no final da NMI. `PPUCTRL` e `PPUMASK` não são
+tocados durante o blink.
+
+O caminho normal da NMI passou de aproximadamente 583 para 590 ciclos por causa
+da consulta da flag. O pior caminho, ao mostrar os 11 tiles, é estimado em 788
+ciclos, ainda abaixo dos cerca de 2.273 ciclos de VBlank NTSC. São estimativas
+do fluxo de instruções, não medições do profiler de ciclos.
+
+## Divisão das pattern tables
+
+A divisão é explícita:
+
+```text
+CHR $0000-$0FFF -> Pattern Table 0 -> sprites
+CHR $1000-$1FFF -> Pattern Table 1 -> background e fonte
+```
+
+`src/chr.s` inclui exatamente `$1000` bytes do asset de sprites e possui asserts
+de montagem para que cada metade continue com 4 KiB. Os glifos ficam fisicamente
+na segunda metade, nos offsets `0x1000 + codigo_ascii * 16`.
+
+O `PPUCTRL` usado pelo jogo é `$90` (`%10010000`): bit 7 habilita NMI, bit 4
+seleciona a Pattern Table 1 para background e o bit 3 limpo mantém sprites na
+Pattern Table 0. Os valores ASCII escritos na nametable continuam sendo índices
+de 8 bits; quem acrescenta a base `$1000` à busca de background é a PPU.
 
 ## Preservação do hot path
 
@@ -91,6 +148,8 @@ Os pontos mais representativos são:
 - o cálculo de borda em `input_apply_sample()`;
 - `initial_screens_update()`, onde a mudança de estado dispara a entrada de tela;
 - `screen_show_title()`, que mostra a sequência PPU segura;
+- `screen_set_title_prompt_visible()` e o bloco opcional de `nmi_handler`, que
+  mostram pedido na thread principal e consumo delimitado em VBlank;
 - o macro `font_tile` em `src/chr.s`, que demonstra os glifos no banco `$1000`;
 - os testes de timeout, START mantido e blink em `tests/test_logic.c` e
   `tests/mesen_game_states.lua`.
@@ -99,16 +158,19 @@ Os pontos mais representativos são:
 
 Medidos no mapa final do linker:
 
-- PRG-ROM: 7.099 bytes, aumento de 894 bytes;
-- BSS: 80 bytes, aumento líquido de 2 bytes;
+- PRG-ROM: 7.043 bytes, aumento de 838 bytes sobre a base da branch;
+- BSS: 81 bytes, aumento líquido de 3 bytes sobre a base;
 - zero page, DATA, OAM e stacks: inalterados;
 - OAM: inalterada; as telas iniciais ocultam todas as 64 entradas;
 - CHR com significado: 14 tiles de sprite e 21 glifos não vazios.
 
 Medido no Mesen 2.2.1: o stress de 1.750 frames saturou 12 Bats e registrou
 1.735 atualizações/NMIs de gameplay após a baseline de transição, sem perda. O
-teste de telas confirmou textos, OAM oculto, START mantido, duas fases do blink
-e entrada na run. O custo em ciclos das escritas de VRAM não foi medido.
+teste de telas confirmou textos, OAM oculto, START mantido, vários ciclos de
+blink sem estado parcial, ausência de writes em `$2000/$2001` durante o blink,
+`PPUCTRL=$90`, glifo na Pattern Table 1 e entrada na run. O PPU Viewer gráfico
+ainda deve ser inspecionado manualmente; o teste headless verifica o mesmo estado
+por memória e callbacks, mas não substitui a observação humana do quadro.
 
 ## Limitações e evoluções relacionadas
 

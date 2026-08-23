@@ -3,7 +3,11 @@
 ; The existing sprite pattern table occupies $0000-$0FFF. The background
 ; pattern table at $1000 stores only the ASCII glyphs used by the initial
 ; screens; unused tiles remain zero-filled by the linker.
+sprite_pattern_table_start:
 .incbin "game.chr", 0, $1000
+.assert * - sprite_pattern_table_start = $1000, error, "sprite pattern table must occupy CHR $0000-$0FFF"
+
+background_pattern_table_start:
 
 .macro font_tile row0, row1, row2, row3, row4, row5, row6, row7
     .byte row0, row1, row2, row3, row4, row5, row6, row7
@@ -44,3 +48,4 @@ font_tile $00,$00,$44,$44,$44,$28,$10,$00 ; v ($76)
 .res 2 * 16, $00            ; w-x
 font_tile $00,$00,$44,$44,$3C,$04,$38,$00 ; y ($79)
 .res (256 - 122) * 16, $00  ; remaining background tiles
+.assert * - background_pattern_table_start = $1000, error, "background pattern table must occupy CHR $1000-$1FFF"

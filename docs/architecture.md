@@ -83,10 +83,11 @@ not by itself a reason to move it into Assembly.
 2. With rendering disabled, startup clears `$2000-$2FFF`, fills all palette
    entries with NES black (`$0F`), fills OAM shadow with `$FF`, initializes the C
    runtime and enables NMI plus background/sprite rendering.
-3. NMI preserves A/X/Y, performs one 256-byte OAM DMA from `$0200`, resets scroll
-   to zero, increments an 8-bit zero-page frame counter, restores registers and
-   returns. Worst-case work is approximately 583 CPU cycles including interrupt
-   entry, comfortably inside the roughly 2,273-cycle NTSC VBlank.
+3. NMI preserves A/X/Y, performs one 256-byte OAM DMA from `$0200`, optionally
+   writes the fixed 11-tile title prompt, resets scroll to zero, increments an
+   8-bit zero-page frame counter, restores registers and returns. Normal work is
+   approximately 590 CPU cycles; the bounded prompt-show path is approximately
+   788 cycles, comfortably inside the roughly 2,273-cycle NTSC VBlank.
 4. `nes_wait_frame` snapshots the counter and waits until NMI changes it. An
    8-bit comparison is atomic on 6502; wraparound is safe because 256 NMIs cannot
    occur between the snapshot and comparison.
@@ -116,11 +117,16 @@ pause, level-up or game-over state that interrupts an active run will require a
 measured runtime dispatcher; that architecture is deliberately not introduced
 before such a milestone exists.
 
-The 11-tile blink update happens at the synchronized frame boundary. The helper
-still disables rendering/NMI around that bounded write and restores scroll,
-preventing PPU address-latch races. Full changes are direct cuts and may span
-multiple video frames while rendering is off; no large VRAM transfer occurs
-during active rendering.
+The 11-tile blink update is requested by C and consumed by the following NMI.
+NMI reads `PPUSTATUS` to reset the shared `$2005/$2006` latch, sets `PPUADDR` to
+`$220A`, writes the complete visible or blank prompt and restores scroll. It
+does not toggle `PPUCTRL` or `PPUMASK`, so rendering remains stable. Full changes
+are still direct cuts and may span multiple video frames while rendering is off.
+
+The fixed `PPUCTRL` value is `$90`: bit 7 enables NMI, bit 4 selects background
+pattern table 1 (`CHR $1000-$1FFF`), and clear bit 3 selects sprite pattern table
+0 (`CHR $0000-$0FFF`). Nametable bytes remain ordinary 8-bit tile indexes; the
+PPU bit chooses which 4 KiB table those indexes address.
 
 Because OAM DMA runs before that main-loop reconstruction, a newly built shadow
 becomes visible at the following NMI. Runtime tests therefore sample movement

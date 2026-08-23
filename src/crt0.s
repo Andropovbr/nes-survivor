@@ -25,6 +25,9 @@ APUSTATUS = $4015
 JOY2      = $4017
 DMCFREQ   = $4010
 
+PPUCTRL_NMI_ENABLE            = %10000000
+PPUCTRL_BACKGROUND_TABLE_1000 = %00010000
+
 .segment "HEADER"
     .byte "NES", $1A
     .byte 2                  ; 2 x 16 KiB PRG-ROM (NROM-256)
@@ -98,7 +101,9 @@ DMCFREQ   = $4010
     ; NMI on, background at $1000, sprites at $0000, nametable $2000.
     ; Keeping tile zero out of the background pattern table prevents the
     ; cleared nametable from repeating Soldier's CHR tile across the screen.
-    lda #%10010000
+    ; Sprites select pattern table 0 because bit 3 remains clear. Background
+    ; selects pattern table 1 through bit 4.
+    lda #(PPUCTRL_NMI_ENABLE | PPUCTRL_BACKGROUND_TABLE_1000)
     sta PPUCTRL
     lda #%00011110           ; enable background and sprites safely
     sta PPUMASK
