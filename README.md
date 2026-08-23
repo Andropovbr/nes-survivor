@@ -8,9 +8,9 @@ for hardware startup and bounded low-level work.
 
 ## Current status
 
-The ROM now boots through a centered `Presented by` credit and a title screen
+The ROM now boots through a centered `PRESENTED BY` credit and a title screen
 before entering the fixed black arena. The credit lasts 150 NTSC frames (2.5
-seconds) or can be skipped with a new START press. `Press Start` on the title
+seconds) or can be skipped with a new START press. `PRESS START` on the title
 screen alternates every 30 frames, and a separate new START press initializes
 the run.
 
@@ -24,7 +24,10 @@ Soldier automatically swings a sword in front of the current facing direction
 once every 60 frames. The generated sword is active for 12 frames and removes
 Bats that overlap its hitbox. Bats first appear from an arena edge after two
 seconds, then every two seconds, and pursue the player at an average 0.375 pixel
-per axis per frame.
+per axis per frame. Every defeated Bat leaves an 8x8 XP gem at its position.
+Touching the player removes the gem; XP totals and progression are not yet
+implemented. Up to eight gems are visible, with excess drops condensed into
+the nearest active gem.
 
 The NROM foundation still performs bounded OAM DMA in NMI and runs controller,
 player, animation and OAM construction logic in the synchronized C main loop.
@@ -53,10 +56,11 @@ make clean
 The ROM is generated at `build/nes-survivor.nes`; the linker map and labels are
 generated beside it. `make test` executes the C logic tests through cc65's
 `sim65` and validates the built iNES cartridge with Python.
-`make test-runtime` is optional and first validates the initial screens for 110
+`make test-runtime` is optional and first validates the initial screens for 175
 frames, then runs the gameplay ROM for 450 frames with Mesen 2's headless Lua
 test runner. `make test-performance` runs a 1,750-frame stress test,
-fills all 12 Bat slots and fails if the gameplay loop misses an NMI.
+fills all 12 Bat slots, observes a gem drop and fails if the gameplay loop
+misses an NMI.
 
 On Windows, `make` uses `python` for portable build-directory creation and
 cleanup. On Unix-like hosts it uses `python3`. Override `PYTHON` or `MESEN` only
@@ -97,10 +101,11 @@ no action yet. The sword attacks automatically and requires no button.
 - one fixed screen with scrolling held at zero
 - no audio and no PAL/Dendy timing adaptation yet
 - one player character, one automatic sword and one enemy type; no player
-  damage, XP, wave transitions, HUD or progression yet
+  damage, XP gain, wave transitions, HUD or progression yet
 - diagonals intentionally use the full one-pixel speed on both axes
-- player and active sword consume 9 OAM slots; 12 Bats raise the worst case to
-  33/64, and overlapping Bats may flicker due to the scanline sprite limit
+- player and active sword consume 9 OAM slots; 12 Bats plus eight gems raise
+  the worst case to 41/64, and overlapping objects may flicker due to the
+  scanline sprite limit
 
 Architecture and frame details are in [docs/architecture.md](docs/architecture.md).
 Measured memory usage is in [docs/memory-map.md](docs/memory-map.md).

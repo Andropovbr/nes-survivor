@@ -54,4 +54,9 @@
 #define BAT_MIN_Y                        1U
 #define BAT_MAX_Y                      232U
 
+/* XP drops use one 8x8 sprite each; pickup currently grants no progression. */
+#define MAX_ACTIVE_XP_GEMS               8U /* fixed runtime pool capacity */
+#define XP_GEM_WIDTH_PIXELS               8U
+#define XP_GEM_HEIGHT_PIXELS              8U
+
 #endif

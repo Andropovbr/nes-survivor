@@ -59,9 +59,9 @@ ASCII e seus valores são escritos diretamente como índices de tiles. As coluna
 foram escolhidas a partir da largura de 32 tiles para centralização visual.
 
 Os primeiros 4 KiB de CHR continuam sendo o banco de sprites existente. A
-segunda pattern table contém 21 glifos não vazios de um bitplane nos códigos
-ASCII usados por `Presented by`, `Codigo e Cartucho`, `NES Survivor` e
-`Press Start`. Isso não usa sprites e não sofre o limite de oito sprites por
+segunda pattern table contém 17 glifos não vazios de um bitplane nos códigos
+ASCII maiúsculos usados por `PRESENTED BY`, `CODIGO E CARTUCHO`, `NES SURVIVOR`
+e `PRESS START`. Isso não usa sprites e não sofre o limite de oito sprites por
 scanline.
 
 Uma troca completa desabilita NMI e renderização antes de limpar os 1.024 bytes
@@ -158,13 +158,14 @@ Os pontos mais representativos são:
 
 Medidos no mapa final do linker:
 
-- PRG-ROM: 7.043 bytes, aumento de 838 bytes sobre a base da branch;
-- BSS: 81 bytes, aumento líquido de 3 bytes sobre a base;
+- PRG-ROM total atual: 7.994 bytes; o marco de telas isolado media 7.043 bytes;
+- BSS total atual: 124 bytes; o marco de telas isolado media 81 bytes;
 - zero page, DATA, OAM e stacks: inalterados;
 - OAM: inalterada; as telas iniciais ocultam todas as 64 entradas;
-- CHR com significado: 14 tiles de sprite e 21 glifos não vazios.
+- CHR com significado: 21 tiles de sprite e 17 glifos maiúsculos não vazios.
 
-Medido no Mesen 2.2.1: o stress de 1.750 frames saturou 12 Bats e registrou
+Medido no Mesen 2.2.1: o stress de 1.750 frames saturou 12 Bats, observou uma
+gema e registrou
 1.735 atualizações/NMIs de gameplay após a baseline de transição, sem perda. O
 teste de telas confirmou textos, OAM oculto, START mantido, vários ciclos de
 blink sem estado parcial, ausência de writes em `$2000/$2001` durante o blink,

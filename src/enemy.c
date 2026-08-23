@@ -5,6 +5,7 @@
 #include "nes.h"
 #include "rng.h"
 #include "tuning.h"
+#include "xp_gem.h"
 
 #define MOVEMENT_FRACTION_BITS 4U
 #define OAM_BYTES_PER_SPRITE   4U
@@ -51,6 +52,7 @@ static uint8_t pending_separation_index;
 static uint8_t pending_separation_other;
 static uint8_t pending_separation_index_position;
 static uint8_t pending_separation_other_position;
+static uint8_t sword_hitbox_scan_parity;
 
 static uint8_t scale_random_to_range(uint8_t random, uint8_t range)
 {
@@ -117,6 +119,7 @@ void enemy_init(void)
     separation_pair_index = 0U;
     separation_pair_other = 1U;
     pending_separation = 0U;
+    sword_hitbox_scan_parity = 0U;
     spawn_timer = BAT_INITIAL_SPAWN_DELAY_FRAMES;
 }
 
@@ -296,7 +299,9 @@ void enemy_apply_sword_hitbox(const WeaponSwordHitbox *hitbox)
     uint8_t sword_width = hitbox->width;
     uint8_t sword_height = hitbox->height;
 
-    for (index = 0U; index < pool_high_water; ++index) {
+    index = sword_hitbox_scan_parity;
+    sword_hitbox_scan_parity ^= 1U;
+    for (; index < pool_high_water; index = (uint8_t)(index + 2U)) {
         if (enemy_active[index] != 0U) {
             uint8_t bat_x = enemy_x_positions[index];
             uint8_t bat_y = enemy_y_positions[index];
@@ -305,6 +310,11 @@ void enemy_apply_sword_hitbox(const WeaponSwordHitbox *hitbox)
                 (uint8_t)(sword_x - bat_x) < BAT_WIDTH_PIXELS) {
                 if ((uint8_t)(bat_y - sword_y) < sword_height ||
                     (uint8_t)(sword_y - bat_y) < BAT_HEIGHT_PIXELS) {
+                    xp_gem_spawn(
+                        (uint8_t)(bat_x +
+                                  (BAT_WIDTH_PIXELS - XP_GEM_WIDTH_PIXELS) /
+                                      2U),
+                        bat_y);
                     enemy_active[index] = 0U;
                     if (pending_separation != 0U &&
                         (pending_separation_index == index ||

@@ -79,3 +79,82 @@ Transitions are direct cuts and may keep rendering off across more than one
 video frame. The font is fixed and monochrome. Timing assumes NTSC. A future
 state that interrupts active gameplay needs a separately measured dispatcher;
 this change only establishes the pre-run lifecycle.
+
+## 2026-08-23 — Added bounded XP-gem drops and uppercase screens
+
+### What changed
+
+Every sword defeat now creates an 8x8 gem centered on the Bat. A fixed
+eight-slot pool handles spawn, contact disappearance, saturated condensation
+and deterministic rendering. The supplied CHR adds gem tile `$14`. All visible
+strings and their sparse background font are now uppercase in pattern table 1.
+
+### Why
+
+Defeated enemies needed to leave visible pickups without implementing XP gain
+or progression. The pool and condensation policy provide bounded RAM/OAM cost
+and avoid silently dropping events when all visible slots are occupied.
+
+### Relevant code
+
+```c
+index = sword_hitbox_scan_parity;
+sword_hitbox_scan_parity ^= 1U;
+for (; index < pool_high_water; index = (uint8_t)(index + 2U)) {
+    xp_gem_spawn((uint8_t)(bat_x + 4U), bat_y);
+}
+```
+
+The active sword alternates even and odd Bat slots. Each enemy is still tested
+within two active frames, while a defeat emits its gem before clearing the slot.
+
+### NES considerations
+
+The gem pool uses no heap. Eight visible gems consume eight OAM entries and
+render after enemies, preserving player/sword/threat priority. A full pool
+increments the nearest gem's represented-drop count. Player contact checks one
+slot per frame, bounding recurring work with at most eight frames of latency.
+Uppercase nametable indexes still select the background table at `$1000`; sprite
+tile `$14` remains in the sprite table at `$0000`.
+
+### Performance
+
+Scenario: 1,750-frame Mesen stress with 12 Bats.
+
+- baseline: 1,735 NMIs / 1,735 updates / 0 skipped;
+- first gem integration: 1,735 / 1,727 / 8 skipped;
+- final staggered collision: 1,735 / 1,735 / 0 skipped.
+
+Individual routine cycle counts were not measured.
+
+### Resource impact
+
+- PRG-ROM: 7,043 -> 7,994 bytes (`+951`);
+- BSS: 81 -> 124 bytes (`+43`);
+- zero page, DATA, OAM shadow and stack reservations: unchanged;
+- CHR-ROM capacity: unchanged at 8 KiB;
+- sprite content: one new tile at `$14`;
+- worst-case hardware sprites: 33 -> 41 of 64.
+
+### Main files affected
+
+`src/xp_gem.c`, `include/xp_gem.h`, `src/enemy.c`, `src/game.c`, `src/screen.c`,
+`src/chr.s`, `assets/game.chr`, tuning/build files, host/Python/Mesen tests,
+READMEs, architecture, memory budgets and the Portuguese implementation note.
+
+### Validation
+
+- clean warnings-as-errors ROM build: PASS
+- sim65 logic tests, including spawn/contact/saturation/OAM: PASS
+- structural ROM/CHR/map validation: PASS
+- Mesen initial screens (175 frames): PASS
+- Mesen gameplay (450 frames): PASS
+- Mesen 12-Bat/gem stress (1,750 frames): PASS, zero skipped updates
+- `git diff --check`: PASS
+
+### Limitations / follow-up
+
+Collection grants no XP and discards the represented count as explicitly scoped.
+The single-frame gem has no visible animation change. Contact processing may
+take eight frames. Scanline flicker management and wave-end collection remain
+future work.

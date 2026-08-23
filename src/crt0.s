@@ -145,7 +145,7 @@ PPUCTRL_BACKGROUND_TABLE_1000 = %00010000
     bne @clear_palette
 
     ; Load the 16-byte sprite palette at $3F10-$3F1F. Palette 0 belongs to
-    ; Soldier/sword and palette 1 contains the colors exported with the bat.
+    ; Soldier/sword; palette 1 is the Bat and palette 3 is the XP gem.
     lda PPUSTATUS
     lda #$3F
     sta PPUADDR
