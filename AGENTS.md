@@ -60,6 +60,17 @@ For a new repository, prefer:
 
 Do not replace the toolchain without documenting the reason and migration impact.
 
+## Windows tool availability
+
+Before concluding that a command-line tool is unavailable on Windows, verify it explicitly.
+
+For `make`, always run:
+
+```powershell
+where.exe make
+Get-Command make -ErrorAction SilentlyContinue
+make --version
+
 ## Source organization
 
 Keep modules focused. Avoid large files that combine unrelated systems.
