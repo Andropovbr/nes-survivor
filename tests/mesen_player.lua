@@ -16,6 +16,7 @@ local sawSwordLeft = false
 local batAppearances = {}
 local previousBatCount = 0
 local currentBatCount = 0
+local currentGemCount = 0
 local firstBatSample = nil
 local laterBatSample = nil
 
@@ -110,6 +111,7 @@ emu.addEventCallback(function()
     swordWasVisible = swordVisible
 
     currentBatCount = 0
+    currentGemCount = 0
     local firstBat = nil
     for sprite = 0, 63 do
         local offset = sprite * 4
@@ -119,6 +121,8 @@ emu.addEventCallback(function()
             if firstBat == nil then
                 firstBat = { x = oam(offset + 3), y = oam(offset), tile = tile }
             end
+        elseif oam(offset) ~= 0xFF and tile == 0x14 then
+            currentGemCount = currentGemCount + 1
         end
     end
     if currentBatCount > previousBatCount then
@@ -175,8 +179,8 @@ emu.addEventCallback(function()
             end
         end
         check(visibleSprites == 7 + (swordVisible and 2 or 0) +
-                                   currentBatCount * 2,
-            "current OAM does not match player, animated sword and Bat count")
+                                   currentBatCount * 2 + currentGemCount,
+            "current OAM does not match player, sword, Bat and gem count")
         for sprite = visibleSprites, 63 do
             check(oam(sprite * 4) == 0xFF,
                 string.format("unused OAM sprite %d was not hidden", sprite))

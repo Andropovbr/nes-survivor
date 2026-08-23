@@ -41,7 +41,7 @@ end
 local function promptState()
     if promptIsBlank() then
         return "hidden"
-    elseif readText(16, 10, 11) == "Press Start" then
+    elseif readText(16, 10, 11) == "PRESS START" then
         return "visible"
     end
     return "partial"
@@ -97,15 +97,15 @@ emu.addEventCallback(function()
     endFrames = endFrames + 1
 
     if endFrames == 12 then
-        check(readText(12, 10, 12) == "Presented by",
-            "Presented by text is missing or misplaced")
-        check(readText(14, 7, 17) == "Codigo e Cartucho",
+        check(readText(12, 10, 12) == "PRESENTED BY",
+            "PRESENTED BY text is missing or misplaced")
+        check(readText(14, 7, 17) == "CODIGO E CARTUCHO",
             "credit text is missing or misplaced")
         check(allSpritesHidden(), "intro left a hardware sprite visible")
     elseif endFrames == 30 then
-        check(readText(12, 10, 12) == "NES Survivor",
+        check(readText(12, 10, 12) == "NES SURVIVOR",
             "held START did not enter or remain on the title screen")
-        check(readText(16, 10, 11) == "Press Start",
+        check(readText(16, 10, 11) == "PRESS START",
             "title prompt is missing")
         check(allSpritesHidden(), "title left a hardware sprite visible")
         check(lastPpuCtrl == 0x90,

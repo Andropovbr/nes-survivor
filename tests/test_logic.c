@@ -10,6 +10,7 @@
 #include "soldier_animation_data.h"
 #include "tuning.h"
 #include "weapon_sword.h"
+#include "xp_gem.h"
 
 #if MAX_EQUIPPED_WEAPONS != 4U
 #error "unexpected initial weapon capacity"
@@ -366,6 +367,7 @@ static void test_enemy_spawn_movement_collision_and_saturation(void)
 
     rng_seed(INITIAL_RNG_SEED);
     enemy_init();
+    xp_gem_init();
     for (update = 0U; update < BAT_INITIAL_SPAWN_DELAY_FRAMES - 1U;
          ++update) {
         enemy_update(120U, 100U);
@@ -430,6 +432,9 @@ static void test_enemy_spawn_movement_collision_and_saturation(void)
     enemy_apply_sword_hitbox(&hitbox);
     CHECK(enemy_is_active(0U) == 0U);
     CHECK(active_enemy_count() == 1U);
+    CHECK(xp_gem_active_count() == 1U);
+    CHECK(xp_gem_x(0U) == (uint8_t)((uint8_t)hitbox.x + 4U));
+    CHECK(xp_gem_y(0U) == (uint8_t)hitbox.y);
 
     for (update = 0U;
          update < (uint16_t)(BAT_SPAWN_INTERVAL_FRAMES *
@@ -441,6 +446,51 @@ static void test_enemy_spawn_movement_collision_and_saturation(void)
     CHECK(enemy_is_active(MAX_ACTIVE_ENEMIES) == 0U);
     CHECK(enemy_x(MAX_ACTIVE_ENEMIES) == 0U);
     CHECK(enemy_y(MAX_ACTIVE_ENEMIES) == 0U);
+}
+
+static void test_xp_gem_collection_condensation_and_rendering(void)
+{
+    OamRenderer renderer;
+    uint8_t index;
+    uint16_t represented_drops = 0U;
+
+    xp_gem_init();
+    for (index = 0U; index < MAX_ACTIVE_XP_GEMS; ++index) {
+        xp_gem_spawn((uint8_t)(16U + index * 24U), 40U);
+    }
+    xp_gem_spawn(17U, 40U);
+    CHECK(xp_gem_active_count() == MAX_ACTIVE_XP_GEMS);
+    for (index = 0U; index < MAX_ACTIVE_XP_GEMS; ++index) {
+        represented_drops = (uint16_t)(represented_drops +
+                                       xp_gem_drop_units(index));
+    }
+    CHECK(represented_drops == (uint16_t)(MAX_ACTIVE_XP_GEMS + 1U));
+    CHECK(xp_gem_drop_units(0U) == 2U);
+
+    oam_renderer_init(&renderer);
+    xp_gem_render(&renderer);
+    CHECK(renderer.next_sprite == MAX_ACTIVE_XP_GEMS);
+    CHECK(oam_shadow[0] == 39U);
+    CHECK(oam_shadow[1] == UINT8_C(0x14));
+    CHECK(oam_shadow[2] == UINT8_C(0x03));
+    CHECK(oam_shadow[3] == 16U);
+
+    xp_gem_update(16U, 40U);
+    CHECK(xp_gem_active_count() == (uint8_t)(MAX_ACTIVE_XP_GEMS - 1U));
+    CHECK(xp_gem_is_active(0U) == 0U);
+    CHECK(xp_gem_drop_units(0U) == 0U);
+
+    xp_gem_spawn(220U, 200U);
+    CHECK(xp_gem_active_count() == MAX_ACTIVE_XP_GEMS);
+    CHECK(xp_gem_x(0U) == 220U);
+    CHECK(xp_gem_y(0U) == 200U);
+    CHECK(xp_gem_drop_units(0U) == 1U);
+
+    renderer.next_sprite = NES_OAM_SPRITE_CAPACITY;
+    xp_gem_render(&renderer);
+    CHECK(renderer.next_sprite == NES_OAM_SPRITE_CAPACITY);
+    CHECK(xp_gem_is_active(MAX_ACTIVE_XP_GEMS) == 0U);
+    CHECK(xp_gem_drop_units(MAX_ACTIVE_XP_GEMS) == 0U);
 }
 
 static void update_until_enemy_step(uint8_t target_x, uint8_t target_y)
@@ -495,6 +545,26 @@ static void test_enemy_separation(void)
     update_until_enemy_step(200U, 200U);
     CHECK(enemy_x(0U) == 101U);
     CHECK(enemy_y(0U) == 101U);
+}
+
+static void test_enemy_sword_collision_staggering(void)
+{
+    WeaponSwordHitbox hitbox;
+
+    enemy_init();
+    xp_gem_init();
+    enemy_test_set(1U, 1U, 100U, 100U);
+    hitbox.x = 100;
+    hitbox.y = 100;
+    hitbox.width = BAT_WIDTH_PIXELS;
+    hitbox.height = BAT_HEIGHT_PIXELS;
+
+    enemy_apply_sword_hitbox(&hitbox);
+    CHECK(enemy_is_active(1U) != 0U);
+    CHECK(xp_gem_active_count() == 0U);
+    enemy_apply_sword_hitbox(&hitbox);
+    CHECK(enemy_is_active(1U) == 0U);
+    CHECK(xp_gem_active_count() == 1U);
 }
 
 static void test_enemy_facing_and_horizontal_flip(void)
@@ -601,7 +671,9 @@ int main(void)
     test_automatic_sword_attack_and_rendering();
     test_sword_screen_edges_and_oam_saturation();
     test_enemy_spawn_movement_collision_and_saturation();
+    test_xp_gem_collection_condensation_and_rendering();
     test_enemy_separation();
+    test_enemy_sword_collision_staggering();
     test_enemy_separation_bounds();
     test_enemy_facing_and_horizontal_flip();
     return failures;

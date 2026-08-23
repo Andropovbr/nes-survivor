@@ -24,11 +24,11 @@
 
 #define PPU_REGISTER(address) (*(volatile uint8_t *)(address))
 
-static const uint8_t presented_by_text[] = "Presented by";
-static const uint8_t credit_text[] = "Codigo e Cartucho";
-static const uint8_t title_text[] = "NES Survivor";
+static const uint8_t presented_by_text[] = "PRESENTED BY";
+static const uint8_t credit_text[] = "CODIGO E CARTUCHO";
+static const uint8_t title_text[] = "NES SURVIVOR";
 /* NMI reads these symbols directly for the fixed 11-tile VBlank update. */
-const uint8_t screen_title_prompt_text[] = "Press Start";
+const uint8_t screen_title_prompt_text[] = "PRESS START";
 volatile uint8_t screen_title_prompt_update;
 
 static void ppu_set_address(uint16_t address)

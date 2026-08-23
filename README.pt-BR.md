@@ -6,11 +6,11 @@ O NES Survivor é um jogo de ação no estilo survivor em arena fixa, projetado 
 
 ## Status atual
 
-A ROM agora exibe um crédito centralizado `Presented by` e uma title screen antes da arena preta fixa. O crédito dura 150 frames NTSC (2,5 segundos) ou pode ser pulado com um novo pressionamento de START. `Press Start` alterna a cada 30 frames, e outro novo pressionamento de START inicializa a run.
+A ROM agora exibe um crédito centralizado `PRESENTED BY` e uma title screen antes da arena preta fixa. O crédito dura 150 frames NTSC (2,5 segundos) ou pode ser pulado com um novo pressionamento de START. `PRESS START` alterna a cada 30 frames, e outro novo pressionamento de START inicializa a run.
 
 No gameplay, o Soldier começa centralizado. O jogador movimenta o Soldier em todas as oito direções do D-pad, mantém a última direção horizontal para a qual estava virado e utiliza uma animação gerada de um frame para idle e dois frames para movimento. As durações das animações, offsets com sinal de metasprites, índices de tiles e atributos de OAM são provenientes dos dados consolidados do png2chr-studio.
 
-O Soldier ataca automaticamente com uma espada à frente da direção para a qual está olhando, uma vez a cada 60 frames. A espada fica ativa por 12 frames e remove Bats que encostam em sua hitbox. O primeiro Bat aparece em uma borda após dois segundos; os seguintes surgem a cada dois segundos e perseguem o player a uma média de 0,375 pixel por eixo por frame.
+O Soldier ataca automaticamente com uma espada à frente da direção para a qual está olhando, uma vez a cada 60 frames. A espada fica ativa por 12 frames e remove Bats que encostam em sua hitbox. O primeiro Bat aparece em uma borda após dois segundos; os seguintes surgem a cada dois segundos e perseguem o player a uma média de 0,375 pixel por eixo por frame. Cada Bat derrotado deixa uma gema de XP 8x8 em sua posição. O contato com o player remove a gema; total de XP e progressão ainda não foram implementados. Até oito gemas ficam visíveis, e drops excedentes são condensados na gema ativa mais próxima.
 
 A base NROM continua realizando DMA de OAM delimitado na NMI e executa a lógica de controle, jogador, animação e construção de OAM no loop principal sincronizado em C. O módulo `player` representa qualquer personagem que o controle 1 assuma; símbolos concretos de gráficos e animação possuem o prefixo `soldier`.
 
@@ -33,7 +33,7 @@ make test-performance
 make clean
 ```
 
-A ROM é gerada em `build/nes-survivor.nes`; o mapa do linker e os labels são gerados ao lado dela. `make test` executa os testes de lógica em C através do `sim65` do cc65 e valida o cartucho iNES gerado com Python. `make test-runtime` primeiro valida as telas iniciais por 110 frames e depois executa o gameplay por 450 frames no executor Lua headless do Mesen 2. `make test-performance` executa um teste de estresse de 1.750 frames, preenche os 12 slots de Bat e falha caso o loop de gameplay perca uma NMI depois da entrada na run.
+A ROM é gerada em `build/nes-survivor.nes`; o mapa do linker e os labels são gerados ao lado dela. `make test` executa os testes de lógica em C através do `sim65` do cc65 e valida o cartucho iNES gerado com Python. `make test-runtime` primeiro valida as telas iniciais por 175 frames e depois executa o gameplay por 450 frames no executor Lua headless do Mesen 2. `make test-performance` executa um teste de estresse de 1.750 frames, preenche os 12 slots de Bat, observa uma gema e falha caso o loop de gameplay perca uma NMI depois da entrada na run.
 
 No Windows, o `make` usa `python` para criar e limpar o diretório de build de
 forma portável. Em sistemas Unix-like, utiliza `python3`. Sobrescreva `PYTHON`
@@ -66,9 +66,9 @@ O controle 1 é lido a cada frame. START pula o crédito e inicia uma run na tit
 - Premissa de temporização NTSC (60 frames por segundo)
 - Uma tela fixa com scrolling travado em zero
 - Sem áudio e sem adaptação de temporização para PAL/Dendy no momento
-- Um personagem, uma espada automática e um tipo de inimigo; ainda sem dano no player, XP, transições de onda, HUD ou progressão
+- Um personagem, uma espada automática e um tipo de inimigo; ainda sem dano no player, ganho de XP, transições de onda, HUD ou progressão
 - As diagonais intencionalmente utilizam a velocidade total de um pixel em ambos os eixos
-- Player e espada ativa usam 9 slots de OAM; 12 Bats elevam o pior caso a 33/64, e Bats sobrepostos podem piscar por causa do limite de sprites por scanline
+- Player e espada ativa usam 9 slots de OAM; 12 Bats mais oito gemas elevam o pior caso a 41/64, e objetos sobrepostos podem piscar por causa do limite de sprites por scanline
 
 Os detalhes de arquitetura e frames estão em [docs/pt-BR/architecture.md](docs/pt-BR/architecture.md).
 O uso de memória medido está em [docs/pt-BR/memory-map.md](docs/pt-BR/memory-map.md).

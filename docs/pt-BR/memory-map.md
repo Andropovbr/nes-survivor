@@ -1,7 +1,7 @@
 # Mapa de memória e orçamentos
 
 As medições vêm de `build/nes-survivor.map`, gerado pelo cc65 2.19 após adicionar
-a primeira máquina explícita de estados para as telas iniciais.
+o pool fixo de gemas de XP.
 
 ## Espaço de endereçamento da CPU e RAM interna
 
@@ -13,12 +13,12 @@ a primeira máquina explícita de estados para as telas iniciais.
 | `$0100-$01FF` | 256 | reserva da stack de hardware do 6502 |
 | `$0200-$02FF` | 256 | shadow de OAM, 64 sprites x 4 bytes |
 | `$0300-$0324` | 37 | dados inicializados do cc65 |
-| `$0325-$0375` | 81 | globais BSS de C |
-| `$0376-$04FF` | 394 | RAM geral livre |
+| `$0325-$03A0` | 124 | globais BSS de C |
+| `$03A1-$04FF` | 351 | RAM geral livre |
 | `$0500-$07FF` | 768 | stack de parâmetros do cc65 |
 
-A RAM estática/reservada soma 1.426 de 2.048 bytes, deixando 622 bytes livres:
-228 na zero page e 394 na RAM geral. Os intervalos de stack são reservas, não
+A RAM estática/reservada soma 1.469 de 2.048 bytes, deixando 579 bytes livres:
+228 na zero page e 351 na RAM geral. Os intervalos de stack são reservas, não
 medições de pico.
 
 ## Estado mutável e pools
@@ -35,7 +35,9 @@ medições de pico.
 | Posição/orientação/animação do player | 7 | BSS |
 | Timers de atividade/cooldown da espada | 2 | BSS |
 | Pool de Bats | 48 | BSS, 12 entradas x 4 bytes |
-| Estado compartilhado de spawn/movimento/animação/separação | 14 | BSS |
+| Estado compartilhado de spawn/movimento/animação/separação/colisão | 15 | BSS |
+| Pool de gemas de XP | 40 | BSS, 8 entradas x 5 bytes |
+| Limite de varredura e cursor de coleta das gemas | 2 | BSS |
 
 Cada Bat armazena X/Y em pixels, uma flag ativa e a orientação horizontal. Um acumulador Q4 compartilhado
 gera passos inteiros, e um frame/timer compartilhado anima todos em sincronia. A alocação
@@ -45,32 +47,37 @@ nenhuma memória é sobrescrita e nenhum Bat agendado é perdido silenciosamente
 Os oito bytes de separação guardam um cursor rotativo de pares e um resultado
 pendente limitado a um eixo; não existe estado de separação por Bat.
 
+Cada gema guarda X/Y, atividade e uma contagem de 16 bits dos drops
+representados. Um pool cheio condensa o novo drop na gema ativa mais próxima. A
+coleta verifica um slot por frame e pode levar até oito frames com o pool cheio.
+
 ## Orçamento de OAM
 
 A prioridade é determinística. Soldier usa 0-6. Durante os 12 frames ativos, a
 espada usa 7-8; fora do ataque, os Bats começam em 7. Até 12 Bats usam dois
-sprites cada, totalizando no pior caso 33/64 e deixando 31 ocultos. Bats
-sobrepostos podem exceder oito sprites por scanline. Player e espada ativa
-mantêm prioridade, mas ainda não há rotação de flicker dos inimigos.
+sprites cada, seguidos por até oito gemas de um sprite. O pior caso é 41/64 e
+23 entradas permanecem ocultas. Objetos sobrepostos podem exceder oito sprites
+por scanline. Player, espada ativa e inimigos mantêm prioridade; ainda não há
+rotação de flicker.
 
 ## Uso do cartucho
 
 | Região | Conteúdo utilizado | Capacidade | Notas |
 | --- | ---: | ---: | --- |
 | Cabeçalho iNES | 16 bytes | 16 bytes | mapper 0, NROM-256 |
-| PRG-ROM | 7.043 bytes | 32.768 bytes | 21,49%; 25.725 bytes livres |
-| CHR-ROM | 560 bytes de tiles com significado | 8.192 bytes | 14 tiles de sprite + 21 glifos não vazios |
+| PRG-ROM | 7.994 bytes | 32.768 bytes | 24,40%; 24.774 bytes livres |
+| CHR-ROM | 608 bytes de tiles com significado | 8.192 bytes | 21 tiles de sprite + 17 glifos maiúsculos não vazios |
 | Arquivo `.nes` | 40.976 bytes | 40.976 bytes | cabeçalho + PRG + CHR |
 
-O PRG inclui 220 bytes de startup, 12 de construtores, 6.549 de código/runtime,
-219 de RODATA, 37 de imagem DATA e seis de vetores. A branch da máquina acrescenta 838
-bytes de PRG e três bytes de BSS em relação à base; zero page, DATA,
-OAM e stacks permanecem inalterados.
+O PRG inclui 220 bytes de startup, 12 de construtores, 7.500 de código/runtime,
+219 de RODATA, 37 de imagem DATA e seis de vetores. Esta mudança acrescenta 951
+bytes de PRG e 43 bytes de BSS sobre a baseline documentada; zero page, DATA,
+shadow de OAM e stacks permanecem inalterados.
 
 Os primeiros 4 KiB de `assets/game.chr` fornecem sprites: Soldier usa `$00-$07`,
-a espada animada `$08-$09` e Bat `$0A-$0D`. `src/chr.s` fornece 21 glifos ASCII
-não vazios na tabela de background `$1000`, nos próprios códigos dos caracteres;
-o tile de espaço reservado e todos os patterns restantes ficam vazios.
+a espada animada `$08-$09`, Bat `$0A-$0D` e a gema `$14`. `src/chr.s` fornece
+17 glifos ASCII maiúsculos não vazios na tabela de background `$1000`, nos
+próprios códigos; o tile de espaço e todos os patterns restantes ficam vazios.
 
 ## Orçamento de tempo
 
@@ -95,6 +102,13 @@ Ao adicionar orientação por Bat, a primeira versão repetia o branch de render
 para os dois tiles e perdeu quatro atualizações com 12 Bats e espada ativa. A
 emissão do registro completo de dois sprites com um único branch restaurou o
 resultado de estresse sem perdas com flip horizontal habilitado.
+
+A primeira integração das gemas verificava os oito slots de coleta em todo
+frame, e o stress com 12 Bats perdeu oito updates durante a espada ativa.
+Escalonar apenas a coleta não recuperou o orçamento. Alternar índices pares e
+ímpares da hitbox reduziu o pico, ainda verificando cada Bat em até dois frames
+ativos. Medição final: 1.750 frames de vídeo, 12 Bats, ao menos uma gema, 1.735
+NMIs/updates e zero perda. Os ciclos não foram medidos separadamente.
 
 As trocas completas de nametable desabilitam intencionalmente NMI e renderização
 durante a escrita de 1.024 bytes e do texto fixo. O runtime de 450 frames no

@@ -10,8 +10,9 @@
   controller-port read routine.
 - `src/main.c` orchestrates initialization and the synchronized main loop.
 - `src/game.c` coordinates the initial-screen lifecycle, initializes gameplay
-  only on entry to `PLAYING`, then orchestrates player, sword, enemy collision
-  and deterministic OAM reconstruction without dispatch cost in the hot path.
+  only on entry to `PLAYING`, then orchestrates player, sword, enemy collision,
+  XP-gem collection and deterministic OAM reconstruction without dispatch cost
+  in the hot path.
 - `src/game_flow.c` owns the explicit `PRESENTED_BY`, `TITLE` and `PLAYING`
   states plus their deterministic frame timers.
 - `src/screen.c` performs the small fixed-screen nametable, palette and text
@@ -40,6 +41,8 @@
   rendering.
 - `src/bat_animation_data.c` adapts the attached generated Bat frames and tiles
   to the shared immutable animation format.
+- `src/xp_gem.c` owns the fixed eight-slot gem pool, saturated-drop
+  condensation, staggered player-contact checks and one-sprite rendering.
 - `include/tuning.h` contains player/sword/Bat geometry, speeds, attack and spawn
   timing, arena bounds and fixed gameplay capacities.
 
@@ -58,12 +61,14 @@ integration point that selects Soldier definitions and mirrors the current
 metasprite when the facing direction is left.
 
 The first 4 KiB of `assets/game.chr` is linked through `src/chr.s`. Soldier uses
-`$00-$07`, the animated sword `$08-$09`, and Bat `$0A-$0D` in sprite pattern
-table `$0000`. The background table at `$1000` contains the sparse one-bitplane
-ASCII glyphs required by the initial screens; tile zero remains blank. Startup
+`$00-$07`, the animated sword `$08-$09`, Bat `$0A-$0D`, and the XP gem at `$14`
+in sprite pattern table `$0000`. The background table at `$1000` contains only
+the sparse uppercase one-bitplane ASCII glyphs required by the initial screens;
+tile zero remains blank. Startup
 loads the sprite palettes, while the screen module loads the minimal black/white
 background palette with rendering and NMI disabled.
-Soldier and sword select palette 0; Bat selects its attached colors in palette 1.
+Soldier and sword select palette 0; Bat selects palette 1 and the gem selects
+palette 3.
 
 ## C and Assembly boundary
 
@@ -97,8 +102,9 @@ not by itself a reason to move it into Assembly.
    restore zero scroll before re-enabling rendering.
 6. After entry to `PLAYING`, initialization returns to `main`. The main loop
    updates player, automatic sword and Bat pursuit, applies the
-   sword hitbox only during active attack frames, then rebuilds OAM in player,
-   optional sword and stable enemy-pool order. Work remains outside NMI.
+   sword hitbox only during active attack frames, checks one gem for player
+   contact, then rebuilds OAM in player, optional sword, stable enemy-pool and
+   stable gem-pool order. Work remains outside NMI.
 
 ## Initial game states
 
@@ -188,9 +194,11 @@ frame. At 12 used slots a complete 66-pair scan takes up to about 106 gameplay
 frames, so this first version deliberately favors bounded CPU cost over an
 immediate rigid response.
 
-Collision compares each active Bat's 16x8 AABB against the animated sword's 8x16
-AABB only during an active attack frame. A hit clears the slot immediately. HP,
-player damage and XP drops are not part of this milestone.
+Collision compares Bat 16x8 AABBs against the animated sword's 8x16 AABB only
+during active attack frames. Even and odd pool indexes alternate, so every Bat
+is checked at least once every two active frames while halving the peak
+collision scan. A hit creates a centered gem before clearing the Bat slot. HP
+and player damage are not implemented.
 
 Inspection of cc65 output and Mesen frame counters identified repeated 16-bit
 struct indexing, per-enemy animation state and generic metasprite calls as the
@@ -216,6 +224,21 @@ tiles. The generic `player` module currently selects `soldier_animation_data` at
 its character-integration boundary and relies on runtime mirroring for left
 facing; no character registry or selection system exists yet.
 
+## XP gem pool
+
+The gem pool has eight fixed slots. Each slot stores byte X/Y, an active flag
+and a 16-bit represented-drop count: five bytes per slot, 40 bytes total. Two
+shared bytes hold the high-water mark and rotating collection cursor. Allocation
+reuses the first inactive slot. If all slots are active, a new drop increments
+the represented count of the nearest gem using an inexpensive Chebyshev-distance
+comparison; no heap, multiplication or recurring nearest search is used.
+
+One active gem is tested against the player's logical 24x24 AABB per frame, so
+contact can take at most eight gameplay frames to remove a saturated-pool gem.
+Collection clears the represented count but deliberately grants no XP yet.
+Rendering occurs after enemies, giving the player, sword and threats priority;
+each visible gem consumes one sprite using CHR tile `$14` and palette 3.
+
 ## Deterministic RNG
 
 `xorshift16` uses two bytes of state and shifts `(7, 9, 8)`. A zero seed is
@@ -229,7 +252,8 @@ Future systems should be added only when their milestone requires them:
 
 - immutable character definitions separated from per-run character state;
 - immutable weapon definitions and compact runtime slots for automatic weapons;
-- fixed-size enemy, projectile and XP pools with documented saturation behavior;
+- a fixed-size projectile pool and progression integration for the existing
+  enemy and XP-gem pools;
 - table-driven arena and wave definitions;
 - eligibility, rarity and application layers for upgrades;
 - unlock objectives and versioned password persistence.

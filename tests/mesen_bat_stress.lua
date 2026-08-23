@@ -5,6 +5,7 @@ local endFrames = 0
 local nmis = 0
 local controllerWrites = 0
 local maxBatCount = 0
+local maxGemCount = 0
 local previousSkipped = 0
 local gameplayBaselineSkipped = nil
 local gameplayStartFrame = nil
@@ -20,6 +21,21 @@ local function batCount()
         local tile = oam(offset + 1)
         if oam(offset) ~= 0xFF and (tile == 0x0A or tile == 0x0C) then
             count = count + 1
+        end
+    end
+    return count
+end
+
+local function gemCount()
+    local count = 0
+    for sprite = 0, 63 do
+        local offset = sprite * 4
+        if oam(offset) ~= 0xFF and oam(offset + 1) == 0x14 then
+            count = count + 1
+            if oam(offset + 2) ~= 0x03 then
+                emu.log("FAIL: XP gem did not use sprite palette 3")
+                emu.stop(1)
+            end
         end
     end
     return count
@@ -61,9 +77,14 @@ end, emu.eventType.inputPolled)
 
 emu.addEventCallback(function()
     local currentBatCount
+    local currentGemCount
 
     endFrames = endFrames + 1
     currentBatCount = batCount()
+    currentGemCount = gemCount()
+    if currentGemCount > maxGemCount then
+        maxGemCount = currentGemCount
+    end
     if gameplayStartFrame == nil and oam(0) == 107 and oam(1) == 0x00 then
         gameplayStartFrame = endFrames
         print(string.format("stress gameplay start: frame=%d", gameplayStartFrame))
@@ -91,11 +112,14 @@ emu.addEventCallback(function()
     if endFrames == 1750 then
         local gameplaySkipped = skipped - (gameplayBaselineSkipped or skipped)
         print(string.format(
-            "stress result: frames=%d bats_max=%d nmis=%d updates=%d gameplay_skipped=%d",
-            endFrames, maxBatCount, nmis, updates, gameplaySkipped))
+            "stress result: frames=%d bats_max=%d gems_max=%d nmis=%d updates=%d gameplay_skipped=%d",
+            endFrames, maxBatCount, maxGemCount, nmis, updates, gameplaySkipped))
 
         if maxBatCount < 12 then
             emu.log("FAIL: stress test never saturated the 12-Bat pool")
+            emu.stop(1)
+        elseif maxGemCount < 1 then
+            emu.log("FAIL: stress test never observed an XP gem drop")
             emu.stop(1)
         elseif gameplaySkipped ~= 0 then
             emu.log("FAIL: gameplay updates were skipped under Bat load")

@@ -9,6 +9,7 @@
 #include "screen.h"
 #include "weapon_sword.h"
 #include "tuning.h"
+#include "xp_gem.h"
 
 static OamRenderer oam_renderer;
 
@@ -17,6 +18,7 @@ static void gameplay_init(void)
     player_init();
     weapon_sword_init();
     enemy_init();
+    xp_gem_init();
     oam_renderer_init(&oam_renderer);
     player_render(&oam_renderer);
     (void)weapon_sword_render(
@@ -73,11 +75,13 @@ void game_update(void)
                             facing_left) != 0U) {
         enemy_apply_sword_hitbox(&sword_hitbox);
     }
+    xp_gem_update(player_x(), player_y());
     oam_renderer_begin(&oam_renderer);
     player_render(&oam_renderer);
     (void)weapon_sword_render(
         &oam_renderer, player_x(), player_y(), facing_left);
     enemy_render(&oam_renderer);
+    xp_gem_render(&oam_renderer);
 }
 
 GameState game_state(void)

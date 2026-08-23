@@ -79,3 +79,83 @@ As transições são cortes diretos e podem manter a renderização desligada po
 mais de um frame de vídeo. A fonte é fixa e monocromática. O timing assume NTSC.
 Um estado futuro que interrompa gameplay ativo precisa de dispatcher próprio e
 medido; esta mudança estabelece somente o lifecycle pré-run.
+
+## 2026-08-23 — Drops delimitados de gema de XP e telas em caixa alta
+
+### O que mudou
+
+Cada derrota pela espada cria uma gema 8x8 centralizada no Bat. Um pool fixo de
+oito slots controla surgimento, desaparecimento por contato, condensação na
+saturação e renderização determinística. O CHR fornecido adiciona o tile `$14`.
+Todos os textos visíveis e a fonte esparsa de background agora usam caixa alta
+na pattern table 1.
+
+### Por que foi necessário
+
+Inimigos derrotados precisavam deixar pickups visíveis sem antecipar ganho de
+XP ou progressão. Pool e condensação limitam RAM/OAM e evitam descartar eventos
+silenciosamente quando todos os slots visíveis estão ocupados.
+
+### Trecho relevante
+
+```c
+index = sword_hitbox_scan_parity;
+sword_hitbox_scan_parity ^= 1U;
+for (; index < pool_high_water; index = (uint8_t)(index + 2U)) {
+    xp_gem_spawn((uint8_t)(bat_x + 4U), bat_y);
+}
+```
+
+A espada ativa alterna slots pares e ímpares. Cada inimigo continua sendo
+verificado em até dois frames ativos, e a derrota emite a gema antes de liberar
+o slot.
+
+### Considerações sobre o NES
+
+O pool não usa heap. Oito gemas visíveis consomem oito entradas de OAM e são
+renderizadas depois dos inimigos, preservando a prioridade de player, espada e
+ameaças. Pool cheio incrementa a contagem representada pela gema mais próxima.
+O contato verifica um slot por frame, limitando o custo com latência máxima de
+oito frames. Índices maiúsculos continuam na tabela de background em `$1000`;
+o tile `$14` permanece na tabela de sprites em `$0000`.
+
+### Desempenho
+
+Cenário: stress de 1.750 frames no Mesen com 12 Bats.
+
+- baseline: 1.735 NMIs / 1.735 updates / 0 perdidos;
+- primeira integração: 1.735 / 1.727 / 8 perdidos;
+- colisão escalonada final: 1.735 / 1.735 / 0 perdidos.
+
+Os ciclos de cada rotina não foram medidos separadamente.
+
+### Impacto em recursos
+
+- PRG-ROM: 7.043 -> 7.994 bytes (`+951`);
+- BSS: 81 -> 124 bytes (`+43`);
+- zero page, DATA, shadow de OAM e reservas de stack: inalterados;
+- capacidade de CHR-ROM: 8 KiB, inalterada;
+- conteúdo de sprites: um novo tile em `$14`;
+- pior caso de sprites de hardware: 33 -> 41 de 64.
+
+### Arquivos principais afetados
+
+`src/xp_gem.c`, `include/xp_gem.h`, `src/enemy.c`, `src/game.c`, `src/screen.c`,
+`src/chr.s`, `assets/game.chr`, tuning/build, testes C/Python/Mesen, READMEs,
+arquitetura, orçamentos e a nota técnica em português.
+
+### Validação
+
+- build limpo da ROM com warnings como erros: PASS
+- testes sim65 de spawn/contato/saturação/OAM: PASS
+- validação estrutural de ROM/CHR/map: PASS
+- telas iniciais no Mesen (175 frames): PASS
+- gameplay no Mesen (450 frames): PASS
+- stress de 12 Bats/gemas (1.750 frames): PASS, zero updates perdidos
+- `git diff --check`: PASS
+
+### Limitações / próximos passos
+
+A coleta não concede XP e descarta a contagem representada, conforme o escopo.
+A gema de um frame não muda visualmente. O contato pode levar oito frames.
+Flicker por scanline e coleta no fim da wave permanecem trabalho futuro.

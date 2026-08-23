@@ -19,7 +19,7 @@ AFLAGS := -t nes --warnings-as-errors -I include --bin-include-dir assets
 LDFLAGS := -C cfg/nrom.cfg --warnings-as-errors
 
 C_MODULES := main game input rng animation metasprite player soldier_animation_data \
-	weapon_sword enemy bat_animation_data game_flow screen
+	weapon_sword enemy bat_animation_data xp_gem game_flow screen
 ASM_MODULES := crt0 nmi nes chr
 C_ASM := $(addprefix $(BUILD_DIR)/c_,$(addsuffix .s,$(C_MODULES)))
 C_OBJECTS := $(addprefix $(BUILD_DIR)/c_,$(addsuffix .o,$(C_MODULES)))
@@ -54,12 +54,12 @@ $(ROM): $(OBJECTS) cfg/nrom.cfg
 
 TEST_SOURCES := tests/test_logic.c src/game_flow.c src/input.c src/rng.c src/animation.c \
 	src/metasprite.c src/player.c src/soldier_animation_data.c \
-	src/weapon_sword.c src/enemy.c src/bat_animation_data.c
+	src/weapon_sword.c src/enemy.c src/bat_animation_data.c src/xp_gem.c
 
 $(TEST_BIN): $(TEST_SOURCES) include/input.h include/rng.h include/nes.h \
 	include/tuning.h include/game_flow.h include/animation.h include/metasprite.h include/player.h \
 	include/soldier_animation_data.h include/weapon_sword.h include/enemy.h \
-	include/bat_animation_data.h | $(BUILD_DIR)
+	include/bat_animation_data.h include/xp_gem.h | $(BUILD_DIR)
 	$(CL65) -t sim6502 --standard c99 --warnings-as-errors -DUNIT_TEST -I include -o $@ $(TEST_SOURCES)
 
 test: $(ROM) $(TEST_BIN)
