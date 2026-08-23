@@ -1,7 +1,7 @@
 # Mapa de memória e orçamentos
 
-As medições vêm de `build/nes-survivor.map`, gerado pelo cc65 2.19 após integrar
-a espada animada ao marco do primeiro inimigo Bat.
+As medições vêm de `build/nes-survivor.map`, gerado pelo cc65 2.19 após adicionar
+o primeiro passe limitado de separação entre Bats.
 
 ## Espaço de endereçamento da CPU e RAM interna
 
@@ -13,12 +13,12 @@ a espada animada ao marco do primeiro inimigo Bat.
 | `$0100-$01FF` | 256 | reserva da stack de hardware do 6502 |
 | `$0200-$02FF` | 256 | shadow de OAM, 64 sprites x 4 bytes |
 | `$0300-$0324` | 37 | dados inicializados do cc65 |
-| `$0325-$035E` | 58 | globais BSS de C |
-| `$035F-$04FF` | 417 | RAM geral livre |
+| `$0325-$0372` | 78 | globais BSS de C |
+| `$0373-$04FF` | 397 | RAM geral livre |
 | `$0500-$07FF` | 768 | stack de parâmetros do cc65 |
 
-A RAM estática/reservada soma 1.403 de 2.048 bytes, deixando 645 bytes livres:
-228 na zero page e 417 na RAM geral. Os intervalos de stack são reservas, não
+A RAM estática/reservada soma 1.423 de 2.048 bytes, deixando 625 bytes livres:
+228 na zero page e 397 na RAM geral. Os intervalos de stack são reservas, não
 medições de pico.
 
 ## Estado mutável e pools
@@ -32,14 +32,16 @@ medições de pico.
 | Estado do RNG | 2 | BSS |
 | Posição/orientação/animação do player | 7 | BSS |
 | Timers de atividade/cooldown da espada | 2 | BSS |
-| Pool de Bats | 36 | BSS, 12 entradas x 3 bytes |
-| Estado compartilhado de spawn/movimento/animação | 6 | BSS |
+| Pool de Bats | 48 | BSS, 12 entradas x 4 bytes |
+| Estado compartilhado de spawn/movimento/animação/separação | 14 | BSS |
 
-Cada Bat armazena X/Y em pixels e uma flag ativa. Um acumulador Q4 compartilhado
+Cada Bat armazena X/Y em pixels, uma flag ativa e a orientação horizontal. Um acumulador Q4 compartilhado
 gera passos inteiros, e um frame/timer compartilhado anima todos em sincronia. A alocação
 reutiliza o primeiro slot inativo abaixo de um limite de varredura que encolhe.
 Com 12 slots ocupados, o spawn vencido permanece pendente e tenta novamente;
 nenhuma memória é sobrescrita e nenhum Bat agendado é perdido silenciosamente.
+Os oito bytes de separação guardam um cursor rotativo de pares e um resultado
+pendente limitado a um eixo; não existe estado de separação por Bat.
 
 ## Orçamento de OAM
 
@@ -54,11 +56,11 @@ mantêm prioridade, mas ainda não há rotação de flicker dos inimigos.
 | Região | Conteúdo utilizado | Capacidade | Notas |
 | --- | ---: | ---: | --- |
 | Cabeçalho iNES | 16 bytes | 16 bytes | mapper 0, NROM-256 |
-| PRG-ROM | 5.126 bytes | 32.768 bytes | 15,64%; 27.642 bytes livres |
+| PRG-ROM | 6.205 bytes | 32.768 bytes | 18,94%; 26.563 bytes livres |
 | CHR-ROM | 224 bytes atribuídos | 8.192 bytes | tiles `$00-$0D`; 7.968 vazios |
 | Arquivo `.nes` | 40.976 bytes | 40.976 bytes | cabeçalho + PRG + CHR |
 
-O PRG inclui 220 bytes de startup, 12 de construtores, 4.688 de código/runtime,
+O PRG inclui 220 bytes de startup, 12 de construtores, 5.767 de código/runtime,
 163 de RODATA, 37 de imagem DATA e seis de vetores. O RODATA contém 117 bytes de
 animação do Soldier, oito registros da espada e 38 bytes de animação do Bat.
 
@@ -77,3 +79,14 @@ Bat. O teste final de 1.700 frames saturou os 12 slots e observou 1.696 NMIs ap�
 o startup com exatamente 1.696 atualizações: nenhuma perda. A animação é
 compartilhada e a renderização usa um caminho C especializado para o par de
 sprites; Assembly não foi necessário.
+
+Um passe inicial com os 66 pares de separação perdeu 249 atualizações no mesmo
+teste de estresse. Limites de 12 e depois quatro pares ainda perderam 107 e 28
+atualizações. A versão final inspeciona um par em um frame sem passo Q4 e aplica
+o resultado guardado no passo seguinte. O teste de 1.700 frames voltou a atingir
+os 12 Bats com 1.696 NMIs e 1.696 atualizações, sem perdas.
+
+Ao adicionar orientação por Bat, a primeira versão repetia o branch de render
+para os dois tiles e perdeu quatro atualizações com 12 Bats e espada ativa. A
+emissão do registro completo de dois sprites com um único branch restaurou o
+mesmo resultado de estresse 1.696/1.696 com flip horizontal habilitado.

@@ -130,6 +130,24 @@ This is below the player's one-pixel step and follows the existing unnormalized
 diagonal convention. Cosmetic animation state is also shared by all Bats. A
 shrinking high-water mark keeps loop cost proportional to used pool slots.
 
+Each Bat stores one byte of horizontal facing. Spawning initializes it from the
+Bat's X position relative to the current target; later horizontal pursuit or
+separation updates it, while purely vertical movement preserves it. The source
+art faces right; left-facing rendering swaps the fixed metasprite's left/right
+tiles and toggles each tile's hardware horizontal-flip bit. The specialized render path
+uses one facing branch per Bat and keeps the same two OAM entries.
+
+Separation uses top-left coordinate differences and a tunable 12x6-pixel
+proximity box. One rotating active pair is inspected on each frame without a Q4
+position step. If close, the cached result replaces pursuit on only the more
+separated axis at the next movement step; pursuit continues on the other axis.
+The two Bats move in opposite directions, exact overlaps use pool index order,
+and arena bounds saturate the result. The rotating pair cursor eventually
+inspects every used-slot pair without placing an O(n-squared) spike on one
+frame. At 12 used slots a complete 66-pair scan takes up to about 106 gameplay
+frames, so this first version deliberately favors bounded CPU cost over an
+immediate rigid response.
+
 Collision compares each active Bat's 16x8 AABB against the animated sword's 8x16
 AABB only during an active attack frame. A hit clears the slot immediately. HP,
 player damage and XP drops are not part of this milestone.

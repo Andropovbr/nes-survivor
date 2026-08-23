@@ -317,10 +317,21 @@ static void test_enemy_spawn_movement_collision_and_saturation(void)
     enemy_render(&renderer);
     CHECK(renderer.next_sprite == 2U);
     CHECK(oam_shadow[0] == (uint8_t)(enemy_y(0U) - 1U));
-    CHECK(oam_shadow[1] == UINT8_C(0x0A));
     CHECK(oam_shadow[3] == enemy_x(0U));
-    CHECK(oam_shadow[5] == UINT8_C(0x0B));
     CHECK(oam_shadow[7] == (uint8_t)(enemy_x(0U) + 8U));
+    if (enemy_is_facing_right(0U) != 0U) {
+        CHECK(oam_shadow[1] == UINT8_C(0x0A));
+        CHECK(oam_shadow[2] == UINT8_C(0x01));
+        CHECK(oam_shadow[5] == UINT8_C(0x0B));
+        CHECK(oam_shadow[6] == UINT8_C(0x01));
+    } else {
+        CHECK(oam_shadow[1] == UINT8_C(0x0B));
+        CHECK(oam_shadow[2] ==
+              (uint8_t)(UINT8_C(0x01) | NES_SPRITE_FLIP_HORIZONTAL));
+        CHECK(oam_shadow[5] == UINT8_C(0x0A));
+        CHECK(oam_shadow[6] ==
+              (uint8_t)(UINT8_C(0x01) | NES_SPRITE_FLIP_HORIZONTAL));
+    }
 
     for (update = 0U; update < BAT_SPAWN_INTERVAL_FRAMES - 1U; ++update) {
         enemy_update(120U, 100U);
@@ -370,6 +381,132 @@ static void test_enemy_spawn_movement_collision_and_saturation(void)
     CHECK(enemy_y(MAX_ACTIVE_ENEMIES) == 0U);
 }
 
+static void update_until_enemy_step(uint8_t target_x, uint8_t target_y)
+{
+    uint8_t update;
+
+    for (update = 0U;
+         update < (uint8_t)((BAT_POSITION_SUBPIXELS_PER_PIXEL +
+                             BAT_MOVEMENT_SPEED_SUBPIXELS - 1U) /
+                            BAT_MOVEMENT_SPEED_SUBPIXELS);
+         ++update) {
+        enemy_update(target_x, target_y);
+    }
+}
+
+static void test_enemy_separation(void)
+{
+    enemy_init();
+    enemy_test_set(0U, 1U, 100U, 100U);
+    enemy_test_set(1U, 1U, 104U, 100U);
+    update_until_enemy_step(200U, 200U);
+    CHECK(enemy_x(0U) == 99U);
+    CHECK(enemy_x(1U) == 105U);
+    CHECK(enemy_y(0U) == 101U);
+    CHECK(enemy_y(1U) == 101U);
+    CHECK(enemy_is_facing_right(0U) == 0U);
+    CHECK(enemy_is_facing_right(1U) != 0U);
+
+    enemy_init();
+    enemy_test_set(0U, 1U, 100U, 100U);
+    enemy_test_set(1U, 1U,
+                   (uint8_t)(100U + BAT_SEPARATION_X_PIXELS), 100U);
+    update_until_enemy_step(200U, 200U);
+    CHECK(enemy_x(0U) == 101U);
+    CHECK(enemy_x(1U) ==
+          (uint8_t)(101U + BAT_SEPARATION_X_PIXELS));
+    CHECK(enemy_y(0U) == 101U);
+    CHECK(enemy_y(1U) == 101U);
+
+    enemy_init();
+    enemy_test_set(0U, 1U, 100U, 100U);
+    enemy_test_set(1U, 1U, 100U, 100U);
+    update_until_enemy_step(200U, 200U);
+    CHECK(enemy_x(0U) == 99U);
+    CHECK(enemy_x(1U) == 101U);
+    CHECK(enemy_y(0U) == 101U);
+    CHECK(enemy_y(1U) == 101U);
+
+    enemy_init();
+    enemy_test_set(0U, 1U, 100U, 100U);
+    enemy_test_set(1U, 0U, 104U, 100U);
+    update_until_enemy_step(200U, 200U);
+    CHECK(enemy_x(0U) == 101U);
+    CHECK(enemy_y(0U) == 101U);
+}
+
+static void test_enemy_facing_and_horizontal_flip(void)
+{
+    OamRenderer renderer;
+    uint8_t x;
+
+    enemy_init();
+    enemy_test_set(0U, 1U, 100U, 100U);
+    CHECK(enemy_is_facing_right(0U) == 0U);
+
+    update_until_enemy_step(200U, 100U);
+    CHECK(enemy_x(0U) == 101U);
+    CHECK(enemy_is_facing_right(0U) != 0U);
+    oam_renderer_init(&renderer);
+    enemy_render(&renderer);
+    CHECK(oam_shadow[1] == UINT8_C(0x0A));
+    CHECK(oam_shadow[2] == UINT8_C(0x01));
+    CHECK(oam_shadow[5] == UINT8_C(0x0B));
+    CHECK(oam_shadow[6] == UINT8_C(0x01));
+
+    x = enemy_x(0U);
+    update_until_enemy_step(x, 200U);
+    CHECK(enemy_x(0U) == x);
+    CHECK(enemy_is_facing_right(0U) != 0U);
+
+    update_until_enemy_step(0U, enemy_y(0U));
+    CHECK(enemy_x(0U) == (uint8_t)(x - 1U));
+    CHECK(enemy_is_facing_right(0U) == 0U);
+    oam_renderer_begin(&renderer);
+    enemy_render(&renderer);
+    CHECK(oam_shadow[1] == UINT8_C(0x0B));
+    CHECK(oam_shadow[2] ==
+          (uint8_t)(UINT8_C(0x01) | NES_SPRITE_FLIP_HORIZONTAL));
+    CHECK(oam_shadow[5] == UINT8_C(0x0A));
+    CHECK(oam_shadow[6] ==
+          (uint8_t)(UINT8_C(0x01) | NES_SPRITE_FLIP_HORIZONTAL));
+}
+
+static void test_enemy_separation_bounds(void)
+{
+    enemy_init();
+    enemy_test_set(0U, 1U, BAT_MIN_X, BAT_MIN_Y);
+    enemy_test_set(1U, 1U, BAT_MIN_X, BAT_MIN_Y);
+    update_until_enemy_step(BAT_MIN_X, BAT_MIN_Y);
+    CHECK(enemy_x(0U) == BAT_MIN_X);
+    CHECK(enemy_x(1U) == (uint8_t)(BAT_MIN_X + 1U));
+    CHECK(enemy_y(0U) == BAT_MIN_Y);
+    CHECK(enemy_y(1U) == BAT_MIN_Y);
+
+    enemy_init();
+    enemy_test_set(0U, 1U, BAT_MAX_X, BAT_MAX_Y);
+    enemy_test_set(1U, 1U, BAT_MAX_X, BAT_MAX_Y);
+    update_until_enemy_step(BAT_MAX_X, BAT_MAX_Y);
+    CHECK(enemy_x(0U) == (uint8_t)(BAT_MAX_X - 1U));
+    CHECK(enemy_x(1U) == BAT_MAX_X);
+    CHECK(enemy_y(0U) == BAT_MAX_Y);
+    CHECK(enemy_y(1U) == BAT_MAX_Y);
+
+    enemy_init();
+    enemy_test_set(0U, 1U, 80U, BAT_MIN_Y);
+    enemy_test_set(1U, 1U, 80U, (uint8_t)(BAT_MIN_Y + 1U));
+    update_until_enemy_step(80U, BAT_MIN_Y);
+    CHECK(enemy_y(0U) == BAT_MIN_Y);
+    CHECK(enemy_y(1U) == (uint8_t)(BAT_MIN_Y + 2U));
+
+    enemy_init();
+    enemy_test_set(0U, 1U, 80U, (uint8_t)(BAT_MAX_Y - 1U));
+    enemy_test_set(1U, 1U, 80U, BAT_MAX_Y);
+    update_until_enemy_step(80U, BAT_MAX_Y);
+    CHECK(enemy_y(0U) == (uint8_t)(BAT_MAX_Y - 2U));
+    CHECK(enemy_y(1U) == BAT_MAX_Y);
+}
+
 static void test_sword_screen_edges_and_oam_saturation(void)
 {
     OamRenderer renderer;
@@ -401,5 +538,8 @@ int main(void)
     test_automatic_sword_attack_and_rendering();
     test_sword_screen_edges_and_oam_saturation();
     test_enemy_spawn_movement_collision_and_saturation();
+    test_enemy_separation();
+    test_enemy_separation_bounds();
+    test_enemy_facing_and_horizontal_flip();
     return failures;
 }

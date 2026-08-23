@@ -15,6 +15,8 @@ void enemy_render(OamRenderer *renderer);
 uint8_t enemy_is_active(uint8_t index);
 uint8_t enemy_x(uint8_t index);
 uint8_t enemy_y(uint8_t index);
+uint8_t enemy_is_facing_right(uint8_t index);
+void enemy_test_set(uint8_t index, uint8_t active, uint8_t x, uint8_t y);
 #endif
 
 #endif

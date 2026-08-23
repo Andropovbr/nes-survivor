@@ -534,6 +534,36 @@ Keep documentation in English unless the repository explicitly establishes anoth
 
 Do not leave stale examples or contradictory plans.
 
+### Implementation notes
+
+Relevant changes to gameplay, architecture, performance, rendering, NES
+hardware interaction, memory management or game systems must also create or
+update a separate human-oriented Markdown note under
+`docs/implementation-notes/`.
+
+Use a descriptive, stable filename such as `enemy-separation.md`. These notes
+do not replace README files, architecture documents, memory budgets or code
+comments. They bridge the implemented code and a technical explanation suitable
+for study, review and development videos.
+
+Implementation notes must be written in Brazilian Portuguese and should explain,
+when relevant:
+
+- the original problem and observable behavior;
+- the chosen solution and its execution flow;
+- small, representative snippets from the actual implementation;
+- NES constraints, architecture decisions and trade-offs;
+- measured performance and memory costs, clearly separated from estimates;
+- what to observe in Mesen or on hardware;
+- directly related limitations and possible evolutions.
+
+Do not require a note for trivial changes such as typo fixes, formatting,
+purely cosmetic documentation edits or changes without technical or behavioral
+interest. When documented behavior changes significantly, update the existing
+note instead of creating a conflicting document. Notes must describe the current
+implementation, and abandoned approaches must be clearly identified as such or
+removed.
+
 ## Code comments
 
 Comments should explain:

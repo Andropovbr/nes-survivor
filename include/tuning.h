@@ -39,6 +39,9 @@
 #define BAT_WIDTH_PIXELS                16U
 #define BAT_HEIGHT_PIXELS                8U
 #define BAT_MOVEMENT_SPEED_SUBPIXELS    6U /* 0.375 pixels per axis/frame */
+/* Nearby Bat top-left positions use this cheap rectangular separation range. */
+#define BAT_SEPARATION_X_PIXELS         12U
+#define BAT_SEPARATION_Y_PIXELS          6U
 #define BAT_INITIAL_SPAWN_DELAY_FRAMES 120U /* 2 seconds at 60 Hz */
 #define BAT_SPAWN_INTERVAL_FRAMES      120U /* 2 seconds at 60 Hz */
 /* Bat position is its top-left corner; bounds keep the full 16x8 sprite visible. */
