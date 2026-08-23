@@ -8,8 +8,13 @@ for hardware startup and bounded low-level work.
 
 ## Current status
 
-The ROM now boots into a fixed black arena with Soldier, the first playable
-character, centered on screen. The player moves Soldier in all eight D-pad
+The ROM now boots through a centered `Presented by` credit and a title screen
+before entering the fixed black arena. The credit lasts 150 NTSC frames (2.5
+seconds) or can be skipped with a new START press. `Press Start` on the title
+screen alternates every 30 frames, and a separate new START press initializes
+the run.
+
+In gameplay, Soldier is centered on screen. The player moves Soldier in all eight D-pad
 directions, remembers the last horizontal facing direction, and uses Soldier's
 generated one-frame idle and two-frame movement animation. Animation durations,
 signed metasprite offsets, tile indexes and OAM attributes come from the
@@ -48,8 +53,9 @@ make clean
 The ROM is generated at `build/nes-survivor.nes`; the linker map and labels are
 generated beside it. `make test` executes the C logic tests through cc65's
 `sim65` and validates the built iNES cartridge with Python.
-`make test-runtime` is optional and runs the ROM for 450 frames with Mesen 2's
-headless Lua test runner. `make test-performance` runs a 1,700-frame stress test,
+`make test-runtime` is optional and first validates the initial screens for 110
+frames, then runs the gameplay ROM for 450 frames with Mesen 2's headless Lua
+test runner. `make test-performance` runs a 1,750-frame stress test,
 fills all 12 Bat slots and fails if the gameplay loop misses an NMI.
 
 On Windows, `make` uses `python` for portable build-directory creation and
@@ -70,15 +76,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/build.ps1 performance
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/build.ps1 clean
 ```
 
-`assets/game.chr` is the source-controlled 8 KiB CHR-ROM bank used by the build.
+The first 4 KiB of `assets/game.chr` supplies sprite patterns. `src/chr.s`
+builds the second pattern table from the small ASCII font used by the initial
+screens.
 
 ## Controls
 
 Controller 1 is sampled every frame. The D-pad moves one pixel per axis per game
 frame, including diagonals. Left and Right update horizontal facing; Up and Down
 alone preserve it. Releasing the D-pad returns to idle while preserving facing.
-A, B, Select and Start are sampled but have no gameplay action yet. The sword
-attacks automatically and requires no button.
+START skips the credit and starts a run from the title screen, but only on a
+newly pressed edge; holding it cannot cross both screens. A, B and Select have
+no action yet. The sword attacks automatically and requires no button.
 
 ## Hardware target and limitations
 

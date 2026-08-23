@@ -6,6 +6,8 @@ local nmis = 0
 local controllerWrites = 0
 local maxBatCount = 0
 local previousSkipped = 0
+local gameplayBaselineSkipped = nil
+local gameplayStartFrame = nil
 
 local function oam(address)
     return emu.read(address, emu.memType.nesSpriteRam)
@@ -38,9 +40,14 @@ emu.addEventCallback(function()
         a = false, b = false, select = false, start = false,
         up = false, down = false, left = false, right = false,
     }
-    local phase = endFrames % 400
+    -- The legacy test began gameplay about four video frames after reset.
+    -- Preserve that phase while anchoring it to the detected run start.
+    local phase = gameplayStartFrame == nil and 0 or
+        (endFrames - gameplayStartFrame + 4) % 400
 
-    if phase < 100 then
+    if (endFrames >= 10 and endFrames <= 12) or endFrames == 20 then
+        input.start = true
+    elseif phase < 100 then
         input.right = true
     elseif phase < 200 then
         input.down = true
@@ -57,6 +64,10 @@ emu.addEventCallback(function()
 
     endFrames = endFrames + 1
     currentBatCount = batCount()
+    if gameplayStartFrame == nil and oam(0) == 107 and oam(1) == 0x00 then
+        gameplayStartFrame = endFrames
+        print(string.format("stress gameplay start: frame=%d", gameplayStartFrame))
+    end
     if currentBatCount > maxBatCount then
         maxBatCount = currentBatCount
         print(string.format(
@@ -65,7 +76,11 @@ emu.addEventCallback(function()
     end
     local updates = math.floor(controllerWrites / 2)
     local skipped = nmis - updates
-    if skipped > previousSkipped then
+    if gameplayStartFrame ~= nil and
+       endFrames == gameplayStartFrame + 5 then
+        gameplayBaselineSkipped = skipped
+        previousSkipped = skipped
+    elseif gameplayBaselineSkipped ~= nil and skipped > previousSkipped then
         local swordVisible = oam(28) ~= 0xFF and oam(29) == 0x08
         print(string.format(
             "stress skip: frame=%d bats=%d sword=%s nmis=%d updates=%d",
@@ -73,15 +88,16 @@ emu.addEventCallback(function()
     end
     previousSkipped = skipped
 
-    if endFrames == 1700 then
+    if endFrames == 1750 then
+        local gameplaySkipped = skipped - (gameplayBaselineSkipped or skipped)
         print(string.format(
-            "stress result: frames=%d bats_max=%d nmis=%d updates=%d skipped=%d",
-            endFrames, maxBatCount, nmis, updates, skipped))
+            "stress result: frames=%d bats_max=%d nmis=%d updates=%d gameplay_skipped=%d",
+            endFrames, maxBatCount, nmis, updates, gameplaySkipped))
 
         if maxBatCount < 12 then
             emu.log("FAIL: stress test never saturated the 12-Bat pool")
             emu.stop(1)
-        elseif skipped ~= 0 then
+        elseif gameplaySkipped ~= 0 then
             emu.log("FAIL: gameplay updates were skipped under Bat load")
             emu.stop(1)
         else

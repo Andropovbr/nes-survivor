@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dependency-free structural validation for the milestone-one cartridge."""
+"""Dependency-free structural validation for the NES Survivor cartridge."""
 
 from __future__ import annotations
 
@@ -40,7 +40,19 @@ def main() -> int:
     require((rom[7] & 0xF0) == 0, "expected mapper 0 upper nibble")
     chr_asset = Path(__file__).resolve().parent.parent / "assets" / "game.chr"
     require(chr_asset.stat().st_size == 8192, "assets/game.chr is not 8 KiB")
-    require(rom[-8192:] == chr_asset.read_bytes(), "ROM CHR does not match assets/game.chr")
+    chr_rom = rom[-8192:]
+    chr_source = chr_asset.read_bytes()
+    require(
+        chr_rom[:4096] == chr_source[:4096],
+        "ROM sprite CHR does not match the first bank of assets/game.chr",
+    )
+    for character in " CENPSabcdeghinorstuvy":
+        tile = chr_rom[4096 + ord(character) * 16 : 4096 + (ord(character) + 1) * 16]
+        if character == " ":
+            require(tile == bytes(16), "background space tile is not blank")
+        else:
+            require(any(tile), f"missing background glyph for {character!r}")
+            require(tile[8:] == bytes(8), f"glyph {character!r} is not one-bitplane text")
 
     vectors = rom[16 + 0x7FFA : 16 + 0x8000]
     require(len(vectors) == 6, "interrupt vector table is incomplete")

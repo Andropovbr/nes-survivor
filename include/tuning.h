@@ -14,6 +14,10 @@
 #define TARGET_FRAME_RATE_NTSC  60U
 #define INITIAL_RNG_SEED        UINT16_C(0xACE1)
 
+/* Initial screens use deterministic NTSC frame counts. */
+#define PRESENTED_BY_DURATION_FRAMES   150U /* 2.5 seconds at 60 Hz */
+#define TITLE_BLINK_HALF_PERIOD_FRAMES  30U /* 0.5 seconds per phase */
+
 /* Player position is the top-left of a logical 24x24-pixel metasprite. */
 #define PLAYER_WIDTH_PIXELS    24U
 #define PLAYER_HEIGHT_PIXELS   24U

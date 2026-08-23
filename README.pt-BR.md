@@ -6,7 +6,9 @@ O NES Survivor é um jogo de ação no estilo survivor em arena fixa, projetado 
 
 ## Status atual
 
-A ROM agora inicializa em uma arena preta fixa com o Soldier, o primeiro personagem jogável, centralizado na tela. O jogador movimenta o Soldier em todas as oito direções do D-pad, mantém a última direção horizontal para a qual estava virado e utiliza uma animação gerada de um frame para idle e dois frames para movimento. As durações das animações, offsets com sinal de metasprites, índices de tiles e atributos de OAM são provenientes dos dados consolidados do png2chr-studio.
+A ROM agora exibe um crédito centralizado `Presented by` e uma title screen antes da arena preta fixa. O crédito dura 150 frames NTSC (2,5 segundos) ou pode ser pulado com um novo pressionamento de START. `Press Start` alterna a cada 30 frames, e outro novo pressionamento de START inicializa a run.
+
+No gameplay, o Soldier começa centralizado. O jogador movimenta o Soldier em todas as oito direções do D-pad, mantém a última direção horizontal para a qual estava virado e utiliza uma animação gerada de um frame para idle e dois frames para movimento. As durações das animações, offsets com sinal de metasprites, índices de tiles e atributos de OAM são provenientes dos dados consolidados do png2chr-studio.
 
 O Soldier ataca automaticamente com uma espada à frente da direção para a qual está olhando, uma vez a cada 60 frames. A espada fica ativa por 12 frames e remove Bats que encostam em sua hitbox. O primeiro Bat aparece em uma borda após dois segundos; os seguintes surgem a cada dois segundos e perseguem o player a uma média de 0,375 pixel por eixo por frame.
 
@@ -31,7 +33,7 @@ make test-performance
 make clean
 ```
 
-A ROM é gerada em `build/nes-survivor.nes`; o mapa do linker e os labels são gerados ao lado dela. `make test` executa os testes de lógica em C através do `sim65` do cc65 e valida o cartucho iNES gerado com Python. `make test-runtime` é opcional e executa a ROM por 450 frames com o executor de testes Lua headless do Mesen 2. `make test-performance` executa um teste de estresse de 1.700 frames, preenche os 12 slots de Bat e falha caso o loop de gameplay perca uma NMI.
+A ROM é gerada em `build/nes-survivor.nes`; o mapa do linker e os labels são gerados ao lado dela. `make test` executa os testes de lógica em C através do `sim65` do cc65 e valida o cartucho iNES gerado com Python. `make test-runtime` primeiro valida as telas iniciais por 110 frames e depois executa o gameplay por 450 frames no executor Lua headless do Mesen 2. `make test-performance` executa um teste de estresse de 1.750 frames, preenche os 12 slots de Bat e falha caso o loop de gameplay perca uma NMI depois da entrada na run.
 
 No Windows, o `make` usa `python` para criar e limpar o diretório de build de
 forma portável. Em sistemas Unix-like, utiliza `python3`. Sobrescreva `PYTHON`
@@ -51,11 +53,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/build.ps1 performance
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/build.ps1 clean
 ```
 
-`assets/game.chr` é o banco de 8 KiB de CHR-ROM sob controle de versão utilizado pelo build.
+Os primeiros 4 KiB de `assets/game.chr` fornecem os patterns de sprites. `src/chr.s` monta a segunda pattern table com a pequena fonte ASCII usada pelas telas iniciais.
 
 ## Controles
 
-O controle 1 é lido a cada frame. O D-pad movimenta um pixel por eixo por frame de jogo, incluindo diagonais. Esquerda e Direita atualizam a orientação horizontal; Cima e Baixo isolados a preservam. Soltar o D-pad retorna ao estado idle preservando a orientação. A espada ataca automaticamente e não exige botão. A, B, Select e Start são lidos, mas ainda não realizam nenhuma ação de gameplay.
+O controle 1 é lido a cada frame. START pula o crédito e inicia uma run na title screen apenas na borda de novo pressionamento; mantê-lo apertado não atravessa as duas telas. O D-pad movimenta um pixel por eixo por frame de jogo, incluindo diagonais. Esquerda e Direita atualizam a orientação horizontal; Cima e Baixo isolados a preservam. Soltar o D-pad retorna ao estado idle preservando a orientação. A espada ataca automaticamente e não exige botão. A, B e Select ainda não realizam nenhuma ação.
 
 ## Plataforma alvo e limitações de hardware
 

@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include "enemy.h"
+#include "game_flow.h"
 #include "input.h"
 #include "metasprite.h"
 #include "nes.h"
@@ -20,6 +21,18 @@
 
 #if UINT8_MAX != 255U || UINT16_MAX != 65535U
 #error "unexpected fixed-width integer representation"
+#endif
+
+#if (NES_PPUCTRL_GAME & NES_PPUCTRL_BACKGROUND_TABLE_1000) == 0U
+#error "background must use pattern table 1 at $1000"
+#endif
+
+#if (NES_PPUCTRL_GAME & NES_PPUCTRL_SPRITE_TABLE_1000) != 0U
+#error "sprites must use pattern table 0 at $0000"
+#endif
+
+#if NES_PPUCTRL_GAME != 0x90U
+#error "game PPUCTRL must enable NMI with BG $1000 and sprites $0000"
 #endif
 
 static uint8_t failures;
@@ -85,6 +98,55 @@ static void test_input_edges(void)
     input_test_apply(0U);
     CHECK(input_pressed() == 0U);
     CHECK(input_released() == (uint8_t)(BUTTON_A | BUTTON_LEFT));
+}
+
+static void test_game_flow(void)
+{
+    uint16_t frame;
+
+    game_flow_init();
+    CHECK(game_flow_state() == GAME_STATE_PRESENTED_BY);
+    CHECK(game_flow_title_prompt_visible() == 0U);
+
+    for (frame = 0U; frame < PRESENTED_BY_DURATION_FRAMES - 1U; ++frame) {
+        game_flow_update(0U);
+        CHECK(game_flow_state() == GAME_STATE_PRESENTED_BY);
+    }
+    game_flow_update(0U);
+    CHECK(game_flow_state() == GAME_STATE_TITLE);
+    CHECK(game_flow_title_prompt_visible() == 1U);
+
+    for (frame = 0U; frame < TITLE_BLINK_HALF_PERIOD_FRAMES - 1U; ++frame) {
+        game_flow_update(0U);
+        CHECK(game_flow_title_prompt_visible() == 1U);
+    }
+    game_flow_update(0U);
+    CHECK(game_flow_title_prompt_visible() == 0U);
+    for (frame = 0U; frame < TITLE_BLINK_HALF_PERIOD_FRAMES; ++frame) {
+        game_flow_update(0U);
+    }
+    CHECK(game_flow_title_prompt_visible() == 1U);
+
+    game_flow_update(BUTTON_START);
+    CHECK(game_flow_state() == GAME_STATE_PLAYING);
+
+    game_flow_init();
+    input_test_apply(0U);
+    input_test_apply(BUTTON_START);
+    game_flow_update(input_pressed());
+    CHECK(game_flow_state() == GAME_STATE_TITLE);
+    input_test_apply(BUTTON_START);
+    game_flow_update(input_pressed());
+    CHECK(game_flow_state() == GAME_STATE_TITLE);
+    input_test_apply(0U);
+    game_flow_update(input_pressed());
+    input_test_apply(BUTTON_START);
+    game_flow_update(input_pressed());
+    CHECK(game_flow_state() == GAME_STATE_PLAYING);
+
+    game_flow_init();
+    CHECK(game_flow_state() == GAME_STATE_PRESENTED_BY);
+    CHECK(game_flow_title_prompt_visible() == 0U);
 }
 
 static void test_player_direction_and_animation_selection(void)
@@ -531,6 +593,7 @@ int main(void)
 {
     test_rng();
     test_input_edges();
+    test_game_flow();
     test_player_direction_and_animation_selection();
     test_player_diagonal_and_bounds();
     test_animation_duration_and_loop();

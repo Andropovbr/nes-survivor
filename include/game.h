@@ -1,10 +1,7 @@
 #ifndef GAME_H
 #define GAME_H
 
-typedef enum GameState {
-    GAME_STATE_BOOT = 0,
-    GAME_STATE_RUNNING
-} GameState;
+#include "game_flow.h"
 
 void game_init(void);
 void game_update(void);
