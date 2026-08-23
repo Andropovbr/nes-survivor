@@ -22,6 +22,10 @@
 #error "Bat must remain slower than the player"
 #endif
 
+#if BAT_SEPARATION_X_PIXELS == 0U || BAT_SEPARATION_Y_PIXELS == 0U
+#error "Bat separation ranges must be nonzero"
+#endif
+
 #if BAT_INITIAL_SPAWN_DELAY_FRAMES == 0U || BAT_SPAWN_INTERVAL_FRAMES == 0U
 #error "Bat spawn timers must be nonzero"
 #endif
@@ -33,18 +37,27 @@
 static uint8_t enemy_x_positions[MAX_ACTIVE_ENEMIES];
 static uint8_t enemy_y_positions[MAX_ACTIVE_ENEMIES];
 static uint8_t enemy_active[MAX_ACTIVE_ENEMIES];
+static uint8_t enemy_facing_right[MAX_ACTIVE_ENEMIES];
 static uint16_t spawn_timer;
 static uint8_t pool_high_water;
 static uint8_t movement_subpixels;
 static uint8_t shared_animation_frame;
 static uint8_t shared_animation_timer;
+static uint8_t separation_pair_index;
+static uint8_t separation_pair_other;
+static uint8_t pending_separation;
+static uint8_t pending_separation_on_x;
+static uint8_t pending_separation_index;
+static uint8_t pending_separation_other;
+static uint8_t pending_separation_index_position;
+static uint8_t pending_separation_other_position;
 
 static uint8_t scale_random_to_range(uint8_t random, uint8_t range)
 {
     return (uint8_t)(((uint16_t)random * (uint16_t)range) >> 8);
 }
 
-static uint8_t spawn_bat(void)
+static uint8_t spawn_bat(uint8_t target_x)
 {
     uint8_t index;
     uint8_t edge;
@@ -62,6 +75,11 @@ static uint8_t spawn_bat(void)
     if (index == pool_high_water) {
         ++pool_high_water;
     }
+    if (pending_separation != 0U &&
+        (pending_separation_index == index ||
+         pending_separation_other == index)) {
+        pending_separation = 0U;
+    }
 
     edge = (uint8_t)(rng_next_u8() & 3U);
     if ((edge & 1U) == 0U) {
@@ -75,6 +93,8 @@ static uint8_t spawn_bat(void)
         enemy_x_positions[index] = (uint8_t)(BAT_MIN_X + coordinate);
         enemy_y_positions[index] = edge == 1U ? BAT_MIN_Y : BAT_MAX_Y;
     }
+    enemy_facing_right[index] =
+        (uint8_t)(enemy_x_positions[index] < target_x);
     enemy_active[index] = 1U;
     if (pool_was_empty != 0U) {
         shared_animation_frame = 0U;
@@ -94,17 +114,21 @@ void enemy_init(void)
     movement_subpixels = 0U;
     shared_animation_frame = 0U;
     shared_animation_timer = bat_animation_data.frames[0].duration;
+    separation_pair_index = 0U;
+    separation_pair_other = 1U;
+    pending_separation = 0U;
     spawn_timer = BAT_INITIAL_SPAWN_DELAY_FRAMES;
 }
 
 void enemy_update(uint8_t target_x, uint8_t target_y)
 {
     uint8_t index;
+    uint8_t other;
     uint8_t move_positions = 0U;
 
     if (spawn_timer > 1U) {
         --spawn_timer;
-    } else if (spawn_bat() != 0U) {
+    } else if (spawn_bat(target_x) != 0U) {
         spawn_timer = BAT_SPAWN_INTERVAL_FRAMES;
     }
 
@@ -127,6 +151,91 @@ void enemy_update(uint8_t target_x, uint8_t target_y)
     }
 
     if (move_positions == 0U) {
+        /* Scan one rotating pair while positions are idle, then apply its
+         * cached one-axis result on the next Q4 movement step. */
+        if (pool_high_water > 1U) {
+            uint8_t delta_x;
+            uint8_t delta_y;
+
+            if (separation_pair_other >= pool_high_water) {
+                ++separation_pair_index;
+                separation_pair_other =
+                    (uint8_t)(separation_pair_index + 1U);
+                if (separation_pair_other >= pool_high_water) {
+                    separation_pair_index = 0U;
+                    separation_pair_other = 1U;
+                }
+            }
+            index = separation_pair_index;
+            other = separation_pair_other;
+            ++separation_pair_other;
+            if (enemy_active[index] != 0U && enemy_active[other] != 0U) {
+                delta_x = enemy_x_positions[index] < enemy_x_positions[other]
+                              ? (uint8_t)(enemy_x_positions[other] -
+                                          enemy_x_positions[index])
+                              : (uint8_t)(enemy_x_positions[index] -
+                                          enemy_x_positions[other]);
+                delta_y = enemy_y_positions[index] < enemy_y_positions[other]
+                              ? (uint8_t)(enemy_y_positions[other] -
+                                          enemy_y_positions[index])
+                              : (uint8_t)(enemy_y_positions[index] -
+                                          enemy_y_positions[other]);
+                if (delta_x < BAT_SEPARATION_X_PIXELS &&
+                    delta_y < BAT_SEPARATION_Y_PIXELS) {
+                    pending_separation = 1U;
+                    pending_separation_index = index;
+                    pending_separation_other = other;
+                    pending_separation_on_x = (uint8_t)(
+                        (delta_x == 0U && delta_y == 0U) ||
+                        delta_x >= delta_y);
+                }
+            }
+            if (pending_separation != 0U &&
+                pending_separation_index == index &&
+                pending_separation_other == other) {
+                if (pending_separation_on_x != 0U) {
+                    if (enemy_x_positions[index] <=
+                        enemy_x_positions[other]) {
+                        pending_separation_index_position =
+                            enemy_x_positions[index] > BAT_MIN_X
+                                ? (uint8_t)(enemy_x_positions[index] - 1U)
+                                : BAT_MIN_X;
+                        pending_separation_other_position =
+                            enemy_x_positions[other] < BAT_MAX_X
+                                ? (uint8_t)(enemy_x_positions[other] + 1U)
+                                : BAT_MAX_X;
+                    } else {
+                        pending_separation_index_position =
+                            enemy_x_positions[index] < BAT_MAX_X
+                                ? (uint8_t)(enemy_x_positions[index] + 1U)
+                                : BAT_MAX_X;
+                        pending_separation_other_position =
+                            enemy_x_positions[other] > BAT_MIN_X
+                                ? (uint8_t)(enemy_x_positions[other] - 1U)
+                                : BAT_MIN_X;
+                    }
+                } else if (enemy_y_positions[index] <
+                           enemy_y_positions[other]) {
+                    pending_separation_index_position =
+                        enemy_y_positions[index] > BAT_MIN_Y
+                            ? (uint8_t)(enemy_y_positions[index] - 1U)
+                            : BAT_MIN_Y;
+                    pending_separation_other_position =
+                        enemy_y_positions[other] < BAT_MAX_Y
+                            ? (uint8_t)(enemy_y_positions[other] + 1U)
+                            : BAT_MAX_Y;
+                } else {
+                    pending_separation_index_position =
+                        enemy_y_positions[index] < BAT_MAX_Y
+                            ? (uint8_t)(enemy_y_positions[index] + 1U)
+                            : BAT_MAX_Y;
+                    pending_separation_other_position =
+                        enemy_y_positions[other] > BAT_MIN_Y
+                            ? (uint8_t)(enemy_y_positions[other] - 1U)
+                            : BAT_MIN_Y;
+                }
+            }
+        }
         return;
     }
 
@@ -134,8 +243,10 @@ void enemy_update(uint8_t target_x, uint8_t target_y)
         if (enemy_active[index] != 0U) {
             if (enemy_x_positions[index] < target_x) {
                 ++enemy_x_positions[index];
+                enemy_facing_right[index] = 1U;
             } else if (enemy_x_positions[index] > target_x) {
                 --enemy_x_positions[index];
+                enemy_facing_right[index] = 0U;
             }
             if (enemy_y_positions[index] < target_y) {
                 ++enemy_y_positions[index];
@@ -144,6 +255,37 @@ void enemy_update(uint8_t target_x, uint8_t target_y)
             }
         }
     }
+
+    if (pending_separation != 0U &&
+        enemy_active[pending_separation_index] != 0U &&
+        enemy_active[pending_separation_other] != 0U) {
+        if (pending_separation_on_x != 0U) {
+            if (pending_separation_index_position <
+                enemy_x_positions[pending_separation_index]) {
+                enemy_facing_right[pending_separation_index] = 0U;
+            } else if (pending_separation_index_position >
+                       enemy_x_positions[pending_separation_index]) {
+                enemy_facing_right[pending_separation_index] = 1U;
+            }
+            if (pending_separation_other_position <
+                enemy_x_positions[pending_separation_other]) {
+                enemy_facing_right[pending_separation_other] = 0U;
+            } else if (pending_separation_other_position >
+                       enemy_x_positions[pending_separation_other]) {
+                enemy_facing_right[pending_separation_other] = 1U;
+            }
+            enemy_x_positions[pending_separation_index] =
+                pending_separation_index_position;
+            enemy_x_positions[pending_separation_other] =
+                pending_separation_other_position;
+        } else {
+            enemy_y_positions[pending_separation_index] =
+                pending_separation_index_position;
+            enemy_y_positions[pending_separation_other] =
+                pending_separation_other_position;
+        }
+    }
+    pending_separation = 0U;
 }
 
 void enemy_apply_sword_hitbox(const WeaponSwordHitbox *hitbox)
@@ -164,6 +306,11 @@ void enemy_apply_sword_hitbox(const WeaponSwordHitbox *hitbox)
                 if ((uint8_t)(bat_y - sword_y) < sword_height ||
                     (uint8_t)(sword_y - bat_y) < BAT_HEIGHT_PIXELS) {
                     enemy_active[index] = 0U;
+                    if (pending_separation != 0U &&
+                        (pending_separation_index == index ||
+                         pending_separation_other == index)) {
+                        pending_separation = 0U;
+                    }
                 }
             }
         }
@@ -193,18 +340,26 @@ void enemy_render(OamRenderer *renderer)
                 return;
             }
 
-            /* This measured hot path emits Bat's fixed horizontal pair without
-             * the cc65 parameter-stack cost of two generic render calls. */
+            /* Mirroring swaps the two tiles as well as flipping each tile. */
             oam_shadow[offset] = (uint8_t)(y - 1U);
-            oam_shadow[offset + 1U] = tiles[0].tile;
-            oam_shadow[offset + 2U] = tiles[0].attributes;
             oam_shadow[offset + 3U] = x;
-            offset = (uint8_t)(offset + OAM_BYTES_PER_SPRITE);
-            oam_shadow[offset] = (uint8_t)(y - 1U);
-            oam_shadow[offset + 1U] = tiles[1].tile;
-            oam_shadow[offset + 2U] = tiles[1].attributes;
-            oam_shadow[offset + 3U] = (uint8_t)(x + NES_SPRITE_WIDTH_PIXELS);
-            offset = (uint8_t)(offset + OAM_BYTES_PER_SPRITE);
+            oam_shadow[offset + 4U] = (uint8_t)(y - 1U);
+            oam_shadow[offset + 7U] =
+                (uint8_t)(x + NES_SPRITE_WIDTH_PIXELS);
+            if (enemy_facing_right[index] != 0U) {
+                oam_shadow[offset + 1U] = tiles[0].tile;
+                oam_shadow[offset + 2U] = tiles[0].attributes;
+                oam_shadow[offset + 5U] = tiles[1].tile;
+                oam_shadow[offset + 6U] = tiles[1].attributes;
+            } else {
+                oam_shadow[offset + 1U] = tiles[1].tile;
+                oam_shadow[offset + 2U] = (uint8_t)(
+                    tiles[1].attributes ^ NES_SPRITE_FLIP_HORIZONTAL);
+                oam_shadow[offset + 5U] = tiles[0].tile;
+                oam_shadow[offset + 6U] = (uint8_t)(
+                    tiles[0].attributes ^ NES_SPRITE_FLIP_HORIZONTAL);
+            }
+            offset = (uint8_t)(offset + (2U * OAM_BYTES_PER_SPRITE));
             renderer->next_sprite = (uint8_t)(renderer->next_sprite + 2U);
         }
     }
@@ -224,5 +379,29 @@ uint8_t enemy_x(uint8_t index)
 uint8_t enemy_y(uint8_t index)
 {
     return index < MAX_ACTIVE_ENEMIES ? enemy_y_positions[index] : 0U;
+}
+
+uint8_t enemy_is_facing_right(uint8_t index)
+{
+    return index < MAX_ACTIVE_ENEMIES ? enemy_facing_right[index] : 0U;
+}
+
+void enemy_test_set(uint8_t index, uint8_t active, uint8_t x, uint8_t y)
+{
+    if (index >= MAX_ACTIVE_ENEMIES) {
+        return;
+    }
+    enemy_x_positions[index] = x;
+    enemy_y_positions[index] = y;
+    enemy_active[index] = (uint8_t)(active != 0U);
+    enemy_facing_right[index] = 0U;
+    pending_separation = 0U;
+    if (enemy_active[index] != 0U && index >= pool_high_water) {
+        pool_high_water = (uint8_t)(index + 1U);
+    }
+    while (pool_high_water != 0U &&
+           enemy_active[pool_high_water - 1U] == 0U) {
+        --pool_high_water;
+    }
 }
 #endif

@@ -58,6 +58,27 @@ O primeiro Bat vence o timer após 120 frames de gameplay. Spawns seguintes bem-
 
 As posições usam coordenadas de pixel armazenadas em bytes. Um acumulador Q4 compartilhado avança seis subpixels por atualização e emite um passo de um pixel ao atingir 16 subpixels, preservando a velocidade média de 0,375 pixel por eixo por atualização. A velocidade fica abaixo do passo de um pixel do player e segue a convenção diagonal sem normalização. O estado cosmético da animação também é compartilhado por todos os Bats. Um limite de varredura que encolhe mantém o custo proporcional aos slots usados.
 
+Cada Bat armazena um byte de orientação horizontal. O spawn inicializa esse
+valor pela posição X do Bat em relação ao alvo atual; depois, perseguição ou
+separação horizontal o atualizam, enquanto movimento puramente vertical o
+preserva. A arte original olha para a direita; para olhar à esquerda, o render
+troca os tiles esquerdo/direito do metasprite fixo de dois sprites e alterna o
+bit de flip horizontal de cada tile.
+O caminho especializado usa uma ramificação de orientação por Bat e mantém as
+mesmas duas entradas de OAM.
+
+A separação usa diferenças entre as coordenadas do canto superior esquerdo e
+uma caixa de proximidade ajustável de 12x6 pixels. Um par ativo rotativo é
+inspecionado em cada frame sem passo de posição Q4. Quando está próximo, o
+resultado guardado substitui a perseguição apenas no eixo de maior separação no
+próximo passo; a perseguição continua no outro eixo. Os dois Bats se movem em
+direções opostas, sobreposições exatas usam a ordem dos índices do pool e os
+limites da arena saturam o resultado. O cursor visita todos os pares de slots
+usados sem concentrar um pico O(n²) em um frame. Com 12 slots usados, uma
+varredura completa dos 66 pares leva até cerca de 106 frames de gameplay; esta
+primeira versão prioriza deliberadamente CPU previsível em vez de resposta
+rígida imediata.
+
 A colisão compara a AABB 16x8 de cada Bat com a AABB 8x16 da espada somente durante um frame ativo do ataque. Um acerto libera o slot imediatamente. HP, dano no player e drops de XP não fazem parte deste marco.
 
 A inspeção da saída do cc65 e dos contadores de frame no Mesen identificou a indexação repetida de structs com 16 bits, o estado de animação por inimigo e as chamadas genéricas de metasprite como caminho crítico. O pool agora usa arrays compactos de bytes, temporização compartilhada e um renderizador limitado aos dois sprites do Bat, ainda em C. Um teste de estresse de 1.700 frames no Mesen alcançou os 12 slots ativos com 1.696 NMIs e 1.696 atualizações de gameplay, portanto não foi necessária nenhuma rotina em Assembly.
