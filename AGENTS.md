@@ -1,1008 +1,475 @@
 # AGENTS.md
 
-## Project purpose
+## Project
 
-This repository contains a real NES game that combines:
+NES Survivor is a real Nintendo Entertainment System game: a fixed-arena survivor-like inspired by Robotron-style action.
 
-- the fixed-arena action of classic games such as Robotron: 2084;
-- automatic weapons;
-- progressive enemy waves;
-- XP collection;
-- level-up upgrade choices;
-- character and weapon progression associated with modern survivor-like games.
+Current product direction:
 
-The initial target is **NROM / Mapper 0**, one arena, and no scrolling.
+- target: NES, NROM / Mapper 0;
+- one arena, no scrolling;
+- C with cc65 is the default;
+- 6502 Assembly is used only when hardware access or measured performance justifies it;
+- automatic weapons, enemy waves, XP, level-up choices, characters, upgrades and long-term password progression are expected systems.
 
-The game is primarily written in **C**, with **6502 Assembly used only where it provides a clear, justified benefit**.
+The repository must remain buildable, measurable and understandable while gameplay grows.
 
-## Core design principles
+## Priority order
 
-1. Build a fun, responsive game before expanding content.
-2. Respect actual NES hardware limitations.
-3. Prefer small, reviewable milestones.
-4. Keep gameplay systems modular and data-driven.
-5. Keep balance values easy to tune.
-6. Avoid premature optimization.
-7. Measure before moving C code into Assembly.
-8. Preserve buildability and runtime correctness after every change.
-9. Do not silently expand scope.
-10. Document architecture, constraints, tests, and memory use continuously.
+When constraints conflict, prefer:
 
-## Current product constraints
+1. Correct runtime behavior.
+2. NES hardware safety.
+3. Small, reviewable scope.
+4. Clear and simple implementation.
+5. Measured performance.
+6. Resource efficiency.
+7. Extensibility that is required by current work.
 
-Unless a milestone explicitly changes them:
+Do not optimize hypothetical problems or introduce architecture for unrequested future features.
 
-- Target mapper: NROM / Mapper 0.
-- Arena count: one.
-- Scrolling: none.
-- Player controls: directional pad; no dual-stick design.
-- Weapons: automatic firing.
-- Maximum equipped weapons during a run: configurable, initially four.
-- Level-up choices: configurable, initially three.
-- Enemies drop XP.
-- XP entities must use a fixed-size pool and a condensation strategy.
-- Enemy waves become progressively harder.
-- Characters may have different starting weapons and attribute modifiers.
-- New characters may be unlocked through gameplay objectives.
-- Long-term progression is expected to use a password system.
+## Cost-aware agent policy
+
+This repository may be worked on by multiple AI runtimes (notably Codex and Gemini CLI).
+`AGENTS.md` is the canonical project policy. Provider-specific files are adapters and must
+not redefine project architecture or workflow rules.
+
+Shared reusable agent roles live under `.agents/roles/`.
+Shared skills live under `.agents/skills/`.
+
+
+Use the cheapest capable execution path.
+
+Subagents are not free: every spawned agent performs its own model and tool work. Do not delegate merely because delegation is available.
+
+### Default workflow
+
+For ordinary implementation:
+
+1. Inspect only the files needed to understand the task.
+2. Decide whether a specialist is actually required.
+3. Prefer a lightweight implementation agent for bounded, already-understood work.
+4. Use deterministic skills/scripts for build, tests, budget extraction and documentation workflows.
+5. Use one focused review pass after implementation.
+6. Escalate to a specialist only when evidence reveals an architectural or performance decision.
+
+Avoid parallel write-heavy agents. Parallelism is mainly appropriate for independent read-only exploration, tests, triage or evidence gathering.
+
+### Specialist routing
+
+Use the architecture-reviewer role (`seu_camilo` in provider adapters) only when work includes a real architecture decision, for example:
+
+- ownership or lifetime of runtime state;
+- module boundaries with meaningful coupling;
+- data representation or pool design;
+- RAM / Zero Page layout decisions;
+- NMI / PPU contracts;
+- C versus Assembly decisions;
+- persistent game-state architecture;
+- unclear trade-offs that affect multiple systems.
+
+Do not use `seu_camilo` for routine implementation, formatting, straightforward tests, documentation or mechanical refactors.
+
+Use the performance-reviewer role (`relampago_marquinhos` in provider adapters) only for evidence-based performance work, for example:
+
+- a measured or reproducible frame-time problem;
+- NMI/VBlank pressure;
+- entity-update hot paths;
+- collision scaling;
+- OAM construction cost;
+- generated cc65 code that appears unexpectedly expensive;
+- RAM/ZP/PRG pressure requiring trade-off analysis.
+
+Do not invoke it for speculative optimization.
+
+Use the implementation-worker role (`ze_da_oficina` in provider adapters) for bounded implementation after requirements and design are sufficiently clear.
+
+Use the final-reviewer role (`fiscal` in provider adapters) for focused post-change review. The fiscal checks correctness, scope, validation and missing tests; it does not redesign the system.
+
+### Escalation rule
+
+A lightweight agent that encounters an unresolved architectural or performance decision must report the decision and evidence instead of inventing a broad redesign.
+
+Do not ask multiple expensive specialists to independently review the same question unless their domains are genuinely different and both are necessary.
+
+### Communication budget
+
+Keep agent-to-agent reports concise:
+
+- lead with findings or result;
+- cite relevant files/symbols;
+- include only evidence needed by the parent;
+- avoid narrating obvious steps;
+- avoid restating this file;
+- avoid dumping large diffs or full source files.
+
+Use the `caveman` skill when a task is producing excessive narration or when terse handoff is explicitly useful.
 
 ## Toolchain
 
-Use the repository's existing toolchain.
+Use the repository's existing toolchain:
 
-For a new repository, prefer:
-
-- cc65 for C compilation;
+- cc65 for C;
 - ca65 for Assembly;
 - ld65 for linking;
-- an NROM-compatible linker configuration;
+- existing NROM linker configuration;
 - Mesen for runtime debugging and validation.
 
-Do not replace the toolchain without documenting the reason and migration impact.
+Do not replace the toolchain without an explicit task and documented migration impact.
 
-## Windows tool availability
+On Windows, before claiming `make` is unavailable, verify:
 
-Before concluding that a command-line tool is unavailable on Windows, verify it explicitly.
-
-For `make`, always run:
-
-```
+```powershell
 where.exe make
 Get-Command make -ErrorAction SilentlyContinue
 make --version
 ```
 
-## Source organization
+## Source and API design
 
-Keep modules focused. Avoid large files that combine unrelated systems.
+Keep modules focused and create them when needed by actual work, not to mirror a hypothetical future architecture.
 
-Expected long-term boundaries include:
+Expected domains include:
 
-- game state and run lifecycle;
-- player;
-- input;
-- PPU and rendering;
-- NMI and frame synchronization;
-- OAM handling;
+- game state / run lifecycle;
+- player and input;
+- PPU / rendering / NMI;
+- OAM;
 - enemies;
-- weapons;
-- projectiles;
-- XP gems and condensation;
-- wave generation;
-- upgrades and rarity;
-- character definitions;
-- unlock objectives;
-- password encoding;
-- deterministic RNG;
+- weapons and projectiles;
+- XP gems;
+- waves;
+- upgrades;
+- characters;
+- RNG;
+- unlocks / password progression;
 - tuning and limits.
 
-Do not create empty placeholder modules merely to match an intended architecture. Add modules when a milestone needs them.
+Headers expose the smallest useful interface.
 
-## Header responsibilities
-
-Headers should expose the smallest useful interface.
-
-- Do not expose internal mutable state without a reason.
 - Avoid circular includes.
-- Use forward declarations and shared type headers when appropriate.
-- Put compile-time gameplay limits and balance constants in `tuning.h` or a clearly named related file.
-- Put hardware constants in hardware-specific headers, not in `tuning.h`.
-- Avoid magic numbers in gameplay code.
+- Avoid exposing mutable internals without need.
+- Prefer IDs and indexes to unnecessary pointers.
+- Put gameplay tuning in `tuning.h` or a clearly related tuning file.
+- Keep hardware constants in hardware-specific headers.
+- Avoid gameplay magic numbers.
 
-## Tuning rules
+## Data and memory rules
 
-Values expected to change during balancing must be centralized.
+The NES has no room for casual allocation.
 
-Examples:
-
-- player base attributes;
-- character modifiers;
-- weapon damage;
-- weapon cooldown;
-- projectile speed;
-- enemy HP;
-- enemy speed;
-- spawn cadence;
-- wave composition;
-- XP values;
-- XP required per level;
-- XP growth per level;
-- maximum active enemies;
-- maximum projectiles;
-- maximum XP gems;
-- XP merge distance or region size;
-- upgrade rarity weights;
-- invulnerability time;
-- pickup radius;
-- arena boundaries.
-
-Use clear names and comments with units.
-
-Examples:
-
-```c
-#define MAX_ACTIVE_ENEMIES       12
-#define MAX_ACTIVE_PROJECTILES   16
-#define MAX_ACTIVE_XP_GEMS        8
-#define LEVEL_UP_CHOICE_COUNT      3
-#define MAX_EQUIPPED_WEAPONS       4
-#define PLAYER_INVULN_FRAMES      60
-```
-
-These values are examples, not permanent decisions.
-
-## Data-oriented design
-
-Use fixed-size pools. Never use heap allocation.
-
-Prefer arrays of compact fields or compact structs according to measured code quality and performance.
-
-For every important runtime pool, document:
-
-- maximum element count;
-- bytes per element;
-- total RAM cost;
-- inactive-slot representation;
-- allocation strategy;
-- update strategy;
-- rendering strategy;
-- behavior when the pool is full.
-
-Keep static definitions separate from runtime state.
-
-Examples:
-
-- `WeaponDefinition` describes immutable weapon properties.
-- `WeaponRuntime` stores cooldown, level, and temporary state.
-- `CharacterDefinition` describes base attributes and starting weapon.
-- `EnemyDefinition` describes type defaults.
-- enemy instances store only per-instance state.
-
-Avoid unnecessary pointers. IDs and array indexes are usually preferable on the NES.
-
-## Numeric conventions
-
-- Use `<stdint.h>` integer types.
-- Avoid `int` where its width or cost is ambiguous.
+- Never use heap allocation.
+- Prefer fixed-size pools.
+- Use `<stdint.h>` fixed-width integer types.
 - Avoid floating point.
 - Document fixed-point formats.
-- Use one consistent convention for percentage modifiers.
-- Prevent accidental overflow.
-- When overflow is intentional, comment it.
-- Use saturating arithmetic where exceeding a cap would create bugs.
-- Keep expensive division and multiplication out of hot paths when tables, shifts, or incremental calculations are clearer.
+- Avoid ambiguous-width `int` in resource-sensitive/runtime data.
+- Prevent accidental arithmetic overflow.
+- Use saturating arithmetic where exceeding a cap is invalid.
+- Keep expensive multiply/divide out of hot paths when a simpler representation is clear.
 
-## C and Assembly boundary
+For an important runtime pool, know:
 
-C is the default language for gameplay systems.
+- maximum count;
+- bytes per element;
+- total RAM cost;
+- inactive representation;
+- allocation behavior;
+- update behavior;
+- rendering behavior;
+- pool-full behavior.
 
-Assembly is appropriate for routines such as:
+Static definitions and runtime state should be separate when that distinction is useful.
 
-- NMI entry and exit;
+## C / Assembly boundary
+
+C is the gameplay default.
+
+Assembly is justified for hardware-facing code or a measured bottleneck, such as:
+
+- NMI entry/exit;
 - OAM DMA;
 - controller reads;
-- optimized memory copy or clear;
-- carefully measured collision or entity loops;
-- fixed-point helpers;
-- other routines proven to be performance-critical.
+- bounded copy/clear routines;
+- measured collision/entity loops;
+- fixed-point helpers.
 
-Every handwritten Assembly routine must document:
+Do not move code to Assembly merely because it runs every frame.
 
-- purpose;
-- why C was insufficient or undesirable;
+For handwritten Assembly, document when relevant:
+
+- purpose and why Assembly is justified;
 - calling convention;
-- input parameters;
-- output values;
-- registers clobbered;
-- zero-page variables used;
-- reentrancy or interrupt assumptions;
-- expected cycle cost when relevant.
+- inputs/outputs;
+- clobbered registers;
+- Zero Page usage;
+- interrupt/reentrancy assumptions;
+- measured or estimated cycle cost.
 
-Do not move a routine into Assembly only because it runs every frame. First inspect generated code or measure runtime behavior.
+Keep C/Assembly interfaces small and stable.
 
-Assembly interfaces should be small and stable.
-
-## Frame and PPU safety
+## Frame, NMI and PPU safety
 
 - Synchronize the main loop with NMI.
+- Gameplay normally updates outside NMI.
+- NMI should perform bounded hardware-transfer work and frame signaling.
 - Keep PPU writes inside valid rendering-disabled or VBlank periods.
-- Use an OAM shadow buffer.
-- Do not perform uncontrolled PPU writes from arbitrary gameplay modules.
-- Track the VBlank workload.
-- Document NMI work and estimated cycle costs.
+- Use the OAM shadow buffer.
+- Do not issue uncontrolled PPU writes from arbitrary gameplay modules.
 - Preserve registers correctly in interrupt handlers.
-- Avoid long or unbounded work inside NMI.
-- Gameplay updates normally run outside NMI.
-- NMI should perform bounded hardware transfer work and frame signaling.
+- Track VBlank/NMI workload when relevant.
 
 ## Sprite policy
 
-The NES supports:
+NES limits:
 
 - 64 hardware sprites total;
 - 8 hardware sprites per scanline.
 
 Therefore:
 
-- gameplay entity count and rendered sprite count must not be assumed to be identical;
-- use fixed rendering budgets;
-- define sprite priorities;
-- allow nonessential effects to be skipped;
-- prefer flicker management over uncontrolled disappearance;
-- do not let XP gems permanently starve the player, enemies, or important projectiles from OAM;
-- keep the player and dangerous threats at higher rendering priority than cosmetic effects;
-- document multi-sprite entities and their worst-case scanline cost.
+- entity count is not the same as rendered-sprite count;
+- enforce deterministic rendering budgets and priorities;
+- player and dangerous threats outrank cosmetic effects;
+- nonessential effects may be skipped;
+- use deliberate flicker management when needed;
+- XP gems must not permanently starve critical sprites;
+- document worst-case sprite cost for multisprite entities.
 
-When a sprite budget is exceeded, behavior must be deterministic and documented.
+## Gameplay-system constraints
 
-## XP gem requirements
+### XP
 
-XP must never be silently lost because the gem pool is full.
+XP must not disappear silently because a fixed pool is full.
 
-Use a configurable fixed-size gem pool.
+Use a deterministic condensation/overflow strategy such as merging, regional accumulation, pending XP, gem upgrading or a documented combination.
 
-Supported condensation approaches include:
+Test saturation.
 
-- merging XP into the nearest active gem;
-- limiting gems by arena region;
-- accumulating pending XP before spawning a gem;
-- upgrading an existing gem's value;
-- combining multiple strategies.
+### Weapons
 
-The selected strategy must document:
+Support data-driven static definitions and compact per-run runtime state where practical.
 
-- maximum active gems;
-- RAM cost;
-- sprite cost;
-- merge behavior;
-- collection behavior;
-- what happens when the pool is full;
-- whether remaining gems are collected at wave end.
+Avoid a separate bespoke update loop for every weapon when a clear shared mechanism works.
 
-XP gem behavior must be tested under pool saturation.
+Design weapons with NES sprite/CPU budgets in mind.
 
-## Weapon rules
+### Upgrades
 
-The player may eventually hold multiple automatic weapons.
+Presentation and application must remain separate.
 
-Weapon code should support:
+Selection should eventually support eligibility, rarity, caps, restrictions, duplicate prevention and deterministic RNG.
 
-- a static weapon definition;
-- per-run weapon level;
-- cooldown;
-- targeting policy;
-- projectile or effect behavior;
-- upgrade-driven behavior changes;
-- configurable limits.
+Handle fewer eligible choices than the configured offer count predictably.
 
-Do not hardcode a separate update loop for every weapon when a shared mechanism is practical. Specialized behavior is allowed when it improves clarity.
+### Characters
 
-Weapons should be designed with NES budgets in mind. Not every weapon should require many independent projectile sprites.
+Prefer table-driven character definitions. Avoid character-specific gameplay code unless the mechanic is genuinely unique.
 
-Consider economical weapon behaviors such as:
+### Waves
 
-- orbiting objects;
-- piercing shots;
-- beams;
-- area pulses;
-- short-lived explosions;
-- boomerangs;
-- chained effects;
-- direct damage without a persistent projectile.
+Wave configuration must be reproducible and respect entity-pool limits.
 
-## Upgrade rules
+Do not model progression only as universal HP inflation.
 
-Upgrades have rarity and eligibility.
+### RNG
 
-The level-up system is expected to offer three choices, subject to tuning.
+Use deterministic pseudo-randomness.
 
-Upgrade selection must eventually consider:
+Allow known seeds in debug/testing contexts and keep gameplay randomness reproducible.
 
-- rarity weights;
-- current weapons;
-- weapon level caps;
-- character restrictions;
-- mutually exclusive upgrades;
-- duplicate prevention within one choice set;
-- deterministic RNG for testing;
-- fallback behavior when fewer than three normal choices are eligible.
+### Password progression
 
-Separate upgrade presentation from upgrade application.
+Passwords represent persistent progression, not a full save state.
 
-Upgrades may:
+Do not implement password encoding before the relevant progression state is defined.
 
-- modify player attributes;
-- modify weapon numeric values;
-- add weapon behavior flags;
-- unlock a new weapon;
-- evolve or transform a weapon;
-- affect XP collection or defense.
+## Game states
 
-## Character rules
+Use explicit centralized game states/transitions.
 
-Character definitions should be table-driven.
+Likely states include title/presentation, run initialization, active gameplay, level-up choice, transitions and game over; add future states only when required.
 
-Each character may define:
-
-- starting weapon;
-- base HP;
-- movement speed modifier;
-- armor;
-- damage or power modifier;
-- cooldown modifier;
-- pickup radius modifier;
-- unlock condition ID;
-- visual or palette identifiers.
-
-Avoid duplicated character-specific gameplay code unless the character has a genuinely unique mechanic.
-
-## Wave rules
-
-Wave difficulty should be data-driven and reproducible.
-
-Wave configuration may control:
-
-- enemy type weights;
-- maximum simultaneous enemies;
-- spawn interval;
-- total enemy count;
-- enemy stat scaling;
-- obstacles;
-- elite enemies;
-- events;
-- bosses or minibosses.
-
-Avoid implementing progression only as a universal HP increase. Add behavioral and composition variety.
-
-Wave generation must respect active entity limits. When the enemy pool is full, spawning should be delayed or handled predictably rather than corrupting memory.
-
-## RNG rules
-
-Use a deterministic pseudo-random number generator.
-
-- Allow a known seed in debug builds.
-- Keep RNG use explicit.
-- Avoid coupling cosmetic randomness with gameplay randomness if it prevents reproducible tests.
-- Document whether RNG state is included in passwords or run state.
-- Tests involving upgrades, waves, or drops should use fixed seeds.
-
-## Password rules
-
-The password system is persistent progression, not a full save state.
-
-Expected password data may include:
-
-- unlocked characters;
-- unlocked weapons or upgrades;
-- completed objectives;
-- highest wave or milestones;
-- version and checksum information.
-
-Do not include unnecessary per-run transient state.
-
-Password encoding must detect invalid input and version incompatibility. Do not implement it until the relevant progression state is defined.
-
-## Game-state architecture
-
-Use explicit game states, such as:
-
-- boot;
-- title;
-- character selection;
-- run initialization;
-- active wave;
-- level-up choice;
-- wave transition;
-- game over;
-- results;
-- password entry.
-
-Do not scatter state transitions across unrelated modules.
-
-Pausing gameplay for a level-up choice should be explicit and deterministic.
+Level-up pause behavior must be explicit and deterministic.
 
 ## Performance discipline
 
-Correctness comes first, but performance budgets must be visible.
+Correctness before optimization.
 
-For code that may become expensive:
+For a suspected hot path:
 
-1. Keep the first implementation simple.
-2. Inspect generated Assembly when useful.
-3. Measure frame time or estimate cycles.
-4. Identify the actual bottleneck.
-5. Optimize only the bottleneck.
-6. Add regression tests or documentation.
+1. establish a reproducible scenario;
+2. inspect or measure;
+3. identify the bottleneck;
+4. make the smallest useful optimization;
+5. compare before/after under the same scenario;
+6. record the result.
 
-Potential hot paths include:
+Potential hot paths include enemy/projectile updates, collisions, targeting, OAM construction, XP attraction, spawning and NMI transfers.
 
-- enemy updates;
-- projectile updates;
-- collision checks;
-- target selection;
-- OAM construction;
-- XP attraction;
-- spawning;
-- NMI transfers.
+Never report an optimization as faster without measurement or reliable generated-code evidence.
 
-Use techniques such as staggered updates only when needed and document their gameplay impact.
+If not measured, say `Performance impact: not measured.`
 
-## Collision rules
+## Collision
 
-Prefer simple collision shapes.
+Prefer inexpensive shapes and algorithms.
 
-- Use bounding boxes, points, or circles approximated with inexpensive math.
-- Avoid checking every object against every other object when counts grow.
-- Use categories and directional queries.
-- Consider spatial regions only if measurement justifies the complexity.
-- Collision code must respect inactive slots and pool limits.
-- Document whether coordinates represent sprite origin, center, or collision origin.
+- Respect inactive slots and pool limits.
+- Document coordinate conventions.
+- Avoid unnecessary all-pairs checks as counts rise.
+- Add spatial partitioning only when measurement justifies its complexity.
 
-## Memory budgeting
+## Resource budgets
 
-Maintain a current RAM and ROM budget.
+Significant systems must account for resource impact.
 
-Documentation must include:
+Track, when available:
 
-- zero-page usage;
+- Zero Page;
 - stack assumptions;
+- RAM globals and pools;
 - OAM shadow;
-- global state;
-- each entity pool;
-- temporary buffers;
-- nametable or update buffers;
-- audio engine memory;
-- remaining headroom;
-- PRG usage;
-- CHR usage.
+- temporary/update buffers;
+- audio memory;
+- PRG-ROM;
+- CHR-ROM;
+- remaining headroom.
 
-Any milestone that adds a significant system must update the budget.
+Use linker/map output rather than source-level guesses when measuring compiled memory.
 
-Do not rely only on source-level estimates. Inspect linker map output.
+Use the `nes-budget` skill for consistent reporting.
 
-## Testing requirements
+## Validation
 
-Every feature must include validation appropriate to its level.
+Compilation alone is not proof that a gameplay feature works.
 
-Use:
+Choose validation appropriate to the change:
 
 - host-side tests for pure logic;
-- compile-time assertions where possible;
-- ROM build tests;
-- linker-map checks;
-- emulator runtime tests;
+- compile-time assertions where appropriate;
+- clean ROM build;
+- linker/map inspection;
+- emulator validation for runtime behavior;
 - debug instrumentation when useful.
 
-Always test:
+Pay special attention to boundaries, invalid IDs, pool saturation, arithmetic overflow and table bounds.
 
-- normal behavior;
-- boundary values;
-- pool saturation;
-- invalid IDs;
-- maximum level;
-- maximum and minimum attributes;
-- arithmetic overflow risks;
-- empty eligible-upgrade sets;
-- duplicate upgrade choices;
-- character and weapon table bounds;
-- XP gem saturation;
-- enemy and projectile pool saturation.
+### Mesen
 
-A successful compilation alone is not sufficient evidence that a gameplay feature works.
+When runtime behavior changed, prefer running the ROM in Mesen and exercising the changed path.
 
-## Emulator validation
+Check relevant items such as:
 
-Prefer Mesen for runtime validation.
+- boot/state transitions;
+- visible behavior;
+- RAM/debugger state;
+- NMI stability;
+- sprite corruption/flicker;
+- OAM priority;
+- unintended PPU writes.
 
-When a change affects runtime behavior:
+Never claim emulator validation if the ROM was not actually executed.
 
-- boot the ROM;
-- exercise the changed feature;
-- inspect relevant RAM or debugger state when needed;
-- verify that NMI remains stable;
-- check for sprite corruption;
-- check for unintended PPU writes;
-- observe scanline flicker and OAM priority;
-- report exactly what was validated.
+Use the `nes-runtime-check` skill for the checklist.
 
-Do not claim emulator validation if the ROM was not actually run.
+## Documentation
 
-## Documentation requirements
+English is the canonical language for architecture/source documentation unless an existing file establishes otherwise.
 
-Documentation is part of every milestone.
+Update only documentation affected by the task.
 
-Update relevant files when behavior changes:
-
-- `README.md`;
-- architecture documentation;
-- memory map and budgets;
-- build instructions;
-- tuning documentation;
-- gameplay-system documentation;
-- known limitations;
-- roadmap or milestone status.
-
-Keep documentation in English unless the repository explicitly establishes another language.
-
-Do not leave stale examples or contradictory plans.
+Do not leave stale examples or contradictory architecture statements.
 
 ### Implementation notes
 
-Relevant changes to gameplay, architecture, performance, rendering, NES
-hardware interaction, memory management or game systems must also create or
-update a separate human-oriented Markdown note under
-`docs/implementation-notes/`.
+Meaningful gameplay, architecture, performance, rendering, memory-management or NES-hardware changes must create or update a human-oriented note under:
 
-Use a descriptive, stable filename such as `enemy-separation.md`. These notes
-do not replace README files, architecture documents, memory budgets or code
-comments. They bridge the implemented code and a technical explanation suitable
-for study, review and development videos.
+`docs/implementation-notes/`
 
-Implementation notes must be written in Brazilian Portuguese and should explain,
-when relevant:
+These notes are written in Brazilian Portuguese and bridge the implementation with study/review/video material.
 
-- the original problem and observable behavior;
-- the chosen solution and its execution flow;
-- small, representative snippets from the actual implementation;
-- NES constraints, architecture decisions and trade-offs;
-- measured performance and memory costs, clearly separated from estimates;
-- what to observe in Mesen or on hardware;
-- directly related limitations and possible evolutions.
+When relevant include:
 
-Do not require a note for trivial changes such as typo fixes, formatting,
-purely cosmetic documentation edits or changes without technical or behavioral
-interest. When documented behavior changes significantly, update the existing
-note instead of creating a conflicting document. Notes must describe the current
-implementation, and abandoned approaches must be clearly identified as such or
-removed.
+- original problem;
+- chosen solution and execution flow;
+- small excerpts from actual code;
+- NES constraints/trade-offs;
+- measured performance/resource cost, clearly distinguished from estimates;
+- what to observe in Mesen;
+- limitations/follow-ups.
 
-## Code comments
+Do not require an implementation note for trivial formatting, typo or cosmetic documentation changes.
 
-Comments should explain:
+Use the `implementation-note` skill to keep this workflow compact.
 
-- why a decision exists;
-- NES constraints;
-- invariants;
-- non-obvious arithmetic;
-- pool-full behavior;
-- interrupt assumptions;
-- Assembly calling conventions;
-- deliberately simplified behavior.
+### Branch change logs
 
-Do not comment every obvious assignment.
-
-## Error handling and assertions
-
-The release ROM may need lightweight handling, but debug builds should fail loudly where possible.
-
-Use assertions, debug colors, emulator breakpoints, logging hooks, or known memory markers to detect:
-
-- invalid IDs;
-- pool overflow;
-- impossible state transitions;
-- table index errors;
-- invalid upgrade combinations;
-- NMI queue overflow;
-- unsupported password versions.
-
-Never allow an out-of-bounds write as a normal failure mode.
-
-## Branch change log requirements
-
-Every implementation branch must maintain a human-readable development log under `docs/changes/`.
-
-This log is part of the implementation itself and must be updated whenever a meaningful code change is made.
-
-The goal is to preserve the reasoning behind changes, not merely duplicate the Git diff.
-
-### Directory structure
-
-Use:
+Every implementation branch maintains synchronized human-readable logs:
 
 ```text
-docs/
-  changes/
-    en/
-    pt-BR/
+docs/changes/en/<sanitized-branch-name>.md
+docs/changes/pt-BR/<sanitized-branch-name>.md
 ```
 
-For each branch, maintain one English file and one Brazilian Portuguese file.
+Update them after meaningful implementation steps, not after formatting noise.
 
-Recommended naming:
+The final logs describe the final branch state and include, when applicable:
 
-```text
-docs/changes/en/<branch-name>.md
-docs/changes/pt-BR/<branch-name>.md
-```
+- date/title;
+- what changed and why;
+- NES constraint/design consideration;
+- affected files;
+- small representative code excerpt;
+- performance/resource impact;
+- exact validation performed;
+- limitations/follow-up.
 
-Sanitize branch names when necessary so `/` does not create unintended nested directories.
+Never invent benchmark/resource values.
 
-Example:
-
-```text
-feature/enemy-collision
-```
-
-may become:
-
-```text
-docs/changes/en/feature-enemy-collision.md
-docs/changes/pt-BR/feature-enemy-collision.md
-```
-
-### When to update the log
-
-Update the branch log after every meaningful implementation step that would normally justify a commit or push.
-
-Do not create noise for:
-
-* whitespace-only changes;
-* formatting-only changes;
-* temporary debug edits that are removed before completion;
-* generated files;
-* mechanical changes with no technical relevance.
-
-A pushed branch must never contain meaningful source changes without a corresponding log update.
-
-### Required content
-
-Each entry must contain:
-
-1. Date.
-2. Short title.
-3. What changed.
-4. Why the change was needed.
-5. Relevant NES constraint or design consideration.
-6. Main files affected.
-7. Relevant code excerpt.
-8. Explanation of the code excerpt.
-9. Performance impact, when applicable.
-10. RAM / Zero Page / PRG / CHR impact, when applicable.
-11. Tests and validation performed.
-12. Known limitations or follow-up work.
-
-### Code excerpts
-
-Include the smallest useful excerpt that explains the implementation.
-
-Do not dump full files or large diffs.
-
-Prefer focused examples such as:
-
-```c
-for (i = 0; i < MAX_ENEMIES; ++i) {
-    if (!enemy_active[i]) {
-        continue;
-    }
-
-    update_enemy(i);
-}
-```
-
-Then explain:
-
-* what the code does;
-* why this approach was chosen;
-* what NES-specific trade-off exists;
-* whether it affects CPU, RAM, OAM, CHR, NMI, or VBlank budgets.
-
-For Assembly, also mention relevant registers, memory use, and cycle implications when meaningful.
-
-### Before / after excerpts
-
-When a refactor changes an important algorithm or optimization strategy, prefer showing both the relevant old and new forms.
-
-Example:
-
-```text
-Before:
-<small old excerpt>
-
-After:
-<small new excerpt>
-```
-
-Then explain the practical effect.
-
-Do not reproduce large Git diffs.
-
-### Performance documentation
-
-For changes touching a hot path, include measured results whenever reliable measurements are available.
-
-Examples:
-
-```text
-Scenario: 16 active enemies
-
-Before:
-Main loop: 25,420 cycles
-
-After:
-Main loop: 20,180 cycles
-
-Difference:
--5,240 cycles (-20.6%)
-```
-
-Never invent measurements.
-
-If performance was not measured, explicitly state:
-
-```text
-Performance impact: not measured.
-```
-
-Do not describe an optimization as faster unless measurement or reliable generated-code analysis supports the claim.
-
-### Resource impact
-
-Record resource changes when they are relevant.
-
-Examples:
-
-```text
-PRG-ROM: +94 bytes
-CHR-ROM: unchanged
-RAM: -8 bytes
-Zero Page: unchanged
-Hardware sprites: unchanged
-```
-
-For graphical changes, include useful tile information when available:
-
-```text
-CHR tiles before: 44
-CHR tiles after: 8
-Tiles saved: 36
-```
-
-### Testing and validation
-
-Each entry must document exactly what was run.
-
-Example:
-
-```text
-Validation:
-
-- clean ROM build: PASS
-- host-side tests: PASS
-- CHR validation: PASS
-- performance benchmark: PASS
-- Mesen runtime validation: PASS
-```
-
-Do not claim emulator testing unless the ROM was actually executed in the emulator.
-
-### English and Portuguese synchronization
-
-The English and Brazilian Portuguese logs must describe the same technical changes.
-
-They do not need to be literal translations, but neither version may omit important technical information present in the other.
-
-English remains the canonical repository language for architecture and source documentation.
-
-The Portuguese branch log exists primarily as a development diary and educational reference.
-
-### Suggested entry format
-
-English:
-
-````markdown
-## 2026-08-19 — Optimized enemy sprite construction
-
-### What changed
-
-...
-
-### Why
-
-...
-
-### Relevant code
-
-```c
-...
-````
-
-### How it works
-
-...
-
-### NES considerations
-
-...
-
-### Performance
-
-...
-
-### Resource impact
-
-...
-
-### Validation
-
-...
-
-### Limitations / follow-up
-
-...
-
-````
-
-Portuguese:
-
-```markdown
-## 2026-08-19 — Otimização da montagem dos sprites dos inimigos
-
-### O que mudou
-
-...
-
-### Por que foi necessário
-
-...
-
-### Trecho relevante
-
-```c
-...
-````
-
-### Como funciona
-
-...
-
-### Considerações sobre o NES
-
-...
-
-### Desempenho
-
-...
-
-### Impacto em recursos
-
-...
-
-### Validação
-
-...
-
-### Limitações / próximos passos
-
-...
-
-```
-
-### Relationship with Git history
-
-The branch log complements Git history; it does not replace it.
-
-Git answers:
-
-> What lines changed?
-
-The development log should answer:
-
-> Why did they change, how does the solution work, and what effect did it have on the NES budgets?
-
-Commit messages should remain concise.
-
-Do not paste commit messages into the documentation as a substitute for technical explanation.
-
-### Branch completion
-
-Before declaring a branch complete:
-
-1. Review the complete branch diff against its base branch.
-2. Ensure every meaningful change is represented in the branch log.
-3. Remove obsolete entries describing approaches that were later reverted.
-4. Make sure English and Portuguese logs are synchronized.
-5. Verify code excerpts still match the final implementation.
-6. Add final benchmark and resource numbers when available.
-7. Record tests and emulator validation.
-8. Ensure no speculative or unverified claim remains in the documentation.
-
-The final branch log must describe the final state of the branch, not merely the chronological sequence of experiments.
-
-### CI validation
-
-When practical, CI should verify that meaningful changes to source, assets, linker configuration, or build scripts are accompanied by updates under `docs/changes/`.
-
-This check should initially be advisory rather than blocking if reliable detection cannot be implemented without excessive false positives.
-
-Do not create empty or meaningless documentation changes merely to satisfy CI.
-```
-
-
-## Build quality
-
-Before finishing any task:
-
-1. Build from a clean state.
-2. Run all relevant tests.
-3. Review warnings.
-4. Inspect linker and memory output.
-5. Run the ROM when runtime behavior changed.
-6. Update documentation.
-7. Summarize known limitations.
-8. Keep the working tree limited to the requested scope.
-
-Do not commit generated binaries unless repository policy requires them.
+Do not paste large diffs.
 
 ## Scope control
 
 Do not:
 
-- introduce scrolling without an explicit milestone;
+- add scrolling without an explicit milestone;
 - migrate away from NROM without an explicit decision;
-- implement unrelated engine features;
-- add complex abstractions for hypothetical future games;
-- refactor the whole repository while implementing a small feature;
+- implement unrelated engine systems;
+- add speculative abstractions;
+- refactor the repository while solving a small local task;
 - add dependencies without justification;
 - hide gameplay limits inside implementation files;
-- silently change established controls or tuning;
-- expand a milestone after discovering optional improvements.
+- silently change established controls/tuning;
+- expand scope because optional improvements were discovered.
 
 Record optional improvements as follow-up work.
 
-## Milestone response format
+## Build quality
 
-Before implementation, report:
+Before declaring implementation complete:
 
-- repository assessment;
-- assumptions;
-- plan;
-- expected files;
-- technical budgets;
-- major risks.
+1. clean build;
+2. relevant tests;
+3. warning review;
+4. linker/resource inspection when relevant;
+5. runtime validation when behavior changed;
+6. required docs/log updates;
+7. final diff/scope review.
 
-After implementation, report:
+Do not commit generated binaries unless repository policy explicitly requires them.
 
-- summary;
-- files changed;
-- architecture decisions;
-- build result;
-- tests;
-- emulator validation;
-- memory and ROM usage;
-- known limitations;
-- recommended next milestone.
-
-Be precise. Distinguish completed work from proposed work.
+Prefer the `nes-build-check` skill for the repeatable portion.
 
 ## Definition of done
 
 A task is done only when:
 
-- the requested behavior is implemented;
-- the ROM builds;
-- tests pass;
-- relevant runtime behavior is validated;
-- memory and hardware limits are still respected;
-- documentation is current;
-- no unrelated regressions are known;
-- limitations and remaining work are stated honestly.
+- requested behavior is implemented;
+- ROM builds;
+- relevant tests pass;
+- runtime behavior is validated when applicable;
+- NES limits remain respected;
+- required documentation is current;
+- working tree remains in scope;
+- limitations and unverified items are stated clearly.
