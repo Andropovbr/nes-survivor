@@ -9,11 +9,22 @@ typedef struct {
     uint8_t x;
     uint8_t y;
     uint8_t hp;
+    uint8_t max_hp;
     uint8_t hit_cooldown;
     PlayerFacing facing;
     uint8_t moving;
     AnimationPlayer animation;
+    uint16_t xp;
+    uint16_t next_level_xp;
+    uint8_t level;
+    uint8_t level_up_pending;
+    uint8_t weapons[MAX_EQUIPPED_WEAPONS];
+    uint8_t bonuses[MAX_EQUIPPED_WEAPONS];
 } PlayerState;
+
+static const uint16_t level_thresholds[LEVEL_UP_MAX_TABLE_LEVEL - 1U] = {
+    5U, 12U, 22U, 35U, 52U, 75U, 105U, 145U, 200U
+};
 
 static PlayerState player;
 
@@ -46,12 +57,26 @@ static uint8_t selected_animation(void)
 
 void player_init(void)
 {
+    uint8_t i;
+
     player.x = PLAYER_INITIAL_X;
     player.y = PLAYER_INITIAL_Y;
     player.hp = PLAYER_INITIAL_HP;
+    player.max_hp = PLAYER_INITIAL_HP;
     player.hit_cooldown = 0U;
     player.facing = PLAYER_FACING_RIGHT;
     player.moving = 0U;
+    player.level = 1U;
+    player.xp = 0U;
+    player.next_level_xp = level_thresholds[0];
+    player.level_up_pending = 0U;
+    player.weapons[0] = 0U;
+    for (i = 1U; i < MAX_EQUIPPED_WEAPONS; ++i) {
+        player.weapons[i] = WEAPON_SLOT_EMPTY;
+    }
+    for (i = 0U; i < MAX_EQUIPPED_WEAPONS; ++i) {
+        player.bonuses[i] = BONUS_SLOT_EMPTY;
+    }
     animation_player_init(&player.animation, &soldier_animation_data,
                           SOLDIER_ANIMATION_IDLE);
 }
@@ -165,3 +190,83 @@ uint8_t player_is_moving(void) { return player.moving; }
 uint8_t player_current_animation(void) { return player.animation.animation; }
 uint8_t player_current_frame(void) { return player.animation.frame; }
 uint8_t player_frame_timer(void) { return player.animation.frame_timer; }
+
+void player_add_xp(uint16_t amount)
+{
+    if ((uint16_t)(UINT16_MAX - player.xp) < amount) {
+        player.xp = UINT16_MAX;
+    } else {
+        player.xp = (uint16_t)(player.xp + amount);
+    }
+    if (player.xp >= player.next_level_xp) {
+        player.level_up_pending = 1U;
+    }
+}
+
+void player_apply_level_up(uint8_t choice_index)
+{
+    if (player.xp >= player.next_level_xp) {
+        player.xp = (uint16_t)(player.xp - player.next_level_xp);
+    } else {
+        player.xp = 0U;
+    }
+
+    if (player.level < UINT8_MAX) {
+        ++player.level;
+    }
+
+    if (player.level < LEVEL_UP_MAX_TABLE_LEVEL) {
+        player.next_level_xp = level_thresholds[(uint8_t)(player.level - 1U)];
+    } else if (player.next_level_xp <= (uint16_t)(UINT16_MAX - 60U)) {
+        player.next_level_xp = (uint16_t)(player.next_level_xp + 60U);
+    } else {
+        player.next_level_xp = UINT16_MAX;
+    }
+
+    if (player.xp >= player.next_level_xp) {
+        player.level_up_pending = 1U;
+    } else {
+        player.level_up_pending = 0U;
+    }
+
+    switch (choice_index) {
+    case 0U:
+        /* Placeholder: Sword upgrade */
+        break;
+    case 1U:
+        if (player.max_hp < UINT8_MAX) {
+            ++player.max_hp;
+        }
+        if (player.hp < UINT8_MAX) {
+            ++player.hp;
+        }
+        break;
+    case 2U:
+        /* Placeholder: Speed upgrade */
+        break;
+    default:
+        break;
+    }
+}
+
+uint16_t player_xp(void) { return player.xp; }
+uint16_t player_next_level_xp(void) { return player.next_level_xp; }
+uint8_t player_level(void) { return player.level; }
+uint8_t player_level_up_pending(void) { return player.level_up_pending; }
+uint8_t player_max_hp(void) { return player.max_hp; }
+
+uint8_t player_weapon(uint8_t slot)
+{
+    if (slot >= MAX_EQUIPPED_WEAPONS) {
+        return WEAPON_SLOT_EMPTY;
+    }
+    return player.weapons[slot];
+}
+
+uint8_t player_bonus(uint8_t slot)
+{
+    if (slot >= MAX_EQUIPPED_WEAPONS) {
+        return BONUS_SLOT_EMPTY;
+    }
+    return player.bonuses[slot];
+}

@@ -763,6 +763,96 @@ static void test_sword_screen_edges_and_oam_saturation(void)
     CHECK(renderer.next_sprite == NES_OAM_SPRITE_CAPACITY);
 }
 
+static void test_player_xp_and_level_up(void)
+{
+    player_init();
+    CHECK(player_level() == 1U);
+    CHECK(player_xp() == 0U);
+    CHECK(player_next_level_xp() == 5U);
+    CHECK(player_level_up_pending() == 0U);
+    CHECK(player_max_hp() == PLAYER_INITIAL_HP);
+    CHECK(player_weapon(0U) == 0U); /* Slot 0 = Sword */
+    CHECK(player_weapon(1U) == 0xFFU); /* Slot 1 = Empty */
+    CHECK(player_weapon(4U) == 0xFFU); /* Out of bounds */
+    CHECK(player_bonus(0U) == 0xFFU);
+    CHECK(player_bonus(4U) == 0xFFU);
+
+    /* Add XP without reaching threshold */
+    player_add_xp(3U);
+    CHECK(player_xp() == 3U);
+    CHECK(player_level_up_pending() == 0U);
+
+    /* Add XP to reach threshold */
+    player_add_xp(2U);
+    CHECK(player_xp() == 5U);
+    CHECK(player_level_up_pending() == 1U);
+
+    /* Apply level up choice 1 (Max HP + 1) */
+    player_apply_level_up(1U);
+    CHECK(player_level() == 2U);
+    CHECK(player_xp() == 0U);
+    CHECK(player_next_level_xp() == 12U);
+    CHECK(player_level_up_pending() == 0U);
+    CHECK(player_max_hp() == (uint8_t)(PLAYER_INITIAL_HP + 1U));
+    CHECK(player_hp() == (uint8_t)(PLAYER_INITIAL_HP + 1U));
+
+    /* Test carry-over XP */
+    player_add_xp(15U);
+    CHECK(player_xp() == 15U);
+    CHECK(player_level_up_pending() == 1U);
+    player_apply_level_up(0U);
+    CHECK(player_level() == 3U);
+    CHECK(player_xp() == 3U); /* 15 - 12 */
+    CHECK(player_next_level_xp() == 22U);
+    CHECK(player_level_up_pending() == 0U);
+
+    /* Test progression through table bounds up to level 11 (+60 increment) */
+    player_add_xp(19U); /* 3 + 19 = 22 */
+    player_apply_level_up(0U); /* lvl 4 */
+    CHECK(player_level() == 4U);
+    CHECK(player_next_level_xp() == 35U);
+
+    player_add_xp(35U);
+    player_apply_level_up(0U); /* lvl 5 */
+    CHECK(player_level() == 5U);
+    CHECK(player_next_level_xp() == 52U);
+
+    player_add_xp(52U);
+    player_apply_level_up(0U); /* lvl 6 */
+    CHECK(player_level() == 6U);
+    CHECK(player_next_level_xp() == 75U);
+
+    player_add_xp(75U);
+    player_apply_level_up(0U); /* lvl 7 */
+    CHECK(player_level() == 7U);
+    CHECK(player_next_level_xp() == 105U);
+
+    player_add_xp(105U);
+    player_apply_level_up(0U); /* lvl 8 */
+    CHECK(player_level() == 8U);
+    CHECK(player_next_level_xp() == 145U);
+
+    player_add_xp(145U);
+    player_apply_level_up(0U); /* lvl 9 */
+    CHECK(player_level() == 9U);
+    CHECK(player_next_level_xp() == 200U);
+
+    player_add_xp(200U);
+    player_apply_level_up(0U); /* lvl 10: beyond table, 200 + 60 = 260 */
+    CHECK(player_level() == 10U);
+    CHECK(player_next_level_xp() == 260U);
+
+    player_add_xp(260U);
+    player_apply_level_up(0U); /* lvl 11: 260 + 60 = 320 */
+    CHECK(player_level() == 11U);
+    CHECK(player_next_level_xp() == 320U);
+
+    /* Test XP saturation */
+    player_add_xp(65535U);
+    CHECK(player_xp() == UINT16_MAX);
+    CHECK(player_level_up_pending() == 1U);
+}
+
 int main(void)
 {
     test_rng();
@@ -771,6 +861,7 @@ int main(void)
     test_player_direction_and_animation_selection();
     test_player_diagonal_and_bounds();
     test_player_contact_damage_and_cooldown();
+    test_player_xp_and_level_up();
     test_animation_duration_and_loop();
     test_metasprite_rendering_and_idle_flip();
     test_automatic_sword_attack_and_rendering();
