@@ -32,9 +32,9 @@ Implemented a complete HUD rendered on background Nametable 0 (rows 0-1), XP acc
 ### Relevant code
 
 ```c
-/* Bounded VRAM queueing in src/hud.c */
+/* Event-driven VRAM buffering with 16-bit math in src/hud.c */
 if ((dirty_flags & DIRTY_XP) != 0U) {
-    fill_count = (uint8_t)(((uint32_t)cached_xp * HUD_XP_BAR_TILES) / cached_next_level_xp);
+    fill_count = (uint8_t)(((uint16_t)cached_xp * HUD_XP_BAR_TILES) / cached_next_level_xp);
     vram_buffer_addr_hi = 0x20U;
     vram_buffer_addr_lo = 0x12U;
     for (i = 0U; i < HUD_XP_BAR_TILES; ++i) {
@@ -49,7 +49,7 @@ if ((dirty_flags & DIRTY_XP) != 0U) {
 ; VBlank transfer execution in src/nmi.s
 @check_vram_buffer:
     lda _vram_buffer_len
-    beq @restore_scroll
+    beq @check_cursor_update
     lda PPUSTATUS
     lda _vram_buffer_addr_hi
     sta PPUADDR
@@ -64,21 +64,26 @@ if ((dirty_flags & DIRTY_XP) != 0U) {
     bne @vram_copy
     lda #$00
     sta _vram_buffer_len
+
+@check_cursor_update:
+    lda _screen_level_up_cursor_update
+    beq @restore_scroll
+    ; transfers 3 cursor column tiles safely during VBlank
 ```
 
 ### NES considerations
 
 - **0 Sprites for HUD:** Moving all HUD elements to background tiles prevents sprite flicker and preserves the 8-sprites-per-scanline hardware limit for gameplay entities.
-- **NMI/VBlank Safety:** PPU writes are strictly isolated to VBlank and capped at 10 bytes per frame, well within the 2,273-cycle NTSC VBlank limit.
-- **Integer Math:** All scaling and threshold math uses integer operations (`uint8_t`, `uint16_t`, `uint32_t`).
+- **NMI/VBlank Safety:** PPU writes are strictly isolated to VBlank and capped at 10 bytes per frame (plus 3 cursor bytes during modal navigation), avoiding forced mid-frame blanking and OAM corruption.
+- **Integer Math & Event-Driven Dirty Flags:** Replaced per-frame XP polling and 32-bit math runtime helper calls with event-driven notifications (`hud_notify_*`) and 16-bit arithmetic, maintaining 0 skipped frames under maximum enemy load.
 
 ### Resource and memory impact
 
-- **Zero Page:** 28 bytes used (0 bytes delta).
-- **RAM / BSS:** 188 bytes used (+60 bytes delta, 287 bytes free headroom).
-- **PRG-ROM:** 10,597 bytes used (+2,194 bytes delta, 22,171 bytes / 67.7% free headroom).
-- **CHR-ROM:** 8,192 bytes (Pattern Table 0 for sprites, Pattern Table 1 for background).
-- **OAM Shadow:** 256 bytes (0 sprites allocated to HUD).
+- **Zero Page:** 28 bytes used ($1C of $1E, 2 bytes free headroom, unchanged).
+- **RAM (DATA + BSS):** 219 bytes used (37 bytes DATA + 182 bytes BSS, +54 bytes delta from 165 bytes in base, 293 bytes free headroom).
+- **PRG-ROM:** 10,307 bytes used (+1,904 bytes delta from 8,403 bytes in base, 22,461 bytes / 68.5% free headroom).
+- **CHR-ROM:** 8,192 bytes (Pattern Table 0 for sprites, Pattern Table 1 for background font and HUD).
+- **OAM Shadow:** 256 bytes (0 sprites allocated to HUD, all 64 sprites available for gameplay).
 
 ### Exact validation performed
 
@@ -88,3 +93,6 @@ if ((dirty_flags & DIRTY_XP) != 0U) {
   - `tests/mesen_game_states.lua`: Passed (175 frames).
   - `tests/mesen_player.lua`: Passed (450 frames).
   - `tests/mesen_player_damage.lua`: Passed (546 frames).
+  - `tests/mesen_level_up.lua`: Passed (77 frames; verifies XP gain, modal pause, cursor navigation, stat application, and unpause).
+- `make test-performance`: Mesen bat stress runner passed:
+  - `tests/mesen_bat_stress.lua`: Passed (1,750 frames, 12 bats max, 1,740 NMIs, 1,740 updates, `gameplay_skipped=0`).

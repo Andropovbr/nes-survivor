@@ -987,6 +987,7 @@ static void test_hud_buffering(void)
     /* Damage player -> HP dirty */
     CHECK(player_take_contact_damage() == 1U);
     CHECK(player_hp() == 4U);
+    hud_notify_hp_changed();
     hud_update();
     CHECK(vram_buffer_len == 6U);
     CHECK(vram_buffer_addr_hi == 0x20U);
@@ -1004,6 +1005,7 @@ static void test_hud_buffering(void)
 
     /* Grant XP -> XP dirty */
     player_add_xp(3U); /* XP = 3, next_level_xp = 5 */
+    hud_notify_xp_changed();
     hud_update();
     CHECK(vram_buffer_len == 10U);
     CHECK(vram_buffer_addr_hi == 0x20U);
@@ -1022,6 +1024,9 @@ static void test_hud_buffering(void)
     /* Advance to level 2 */
     player_add_xp(2U);
     player_apply_level_up(1U); /* Level = 2, max_hp = 6, hp = 5, xp = 0, next_level_xp = 12 */
+    hud_notify_hp_changed();
+    hud_notify_xp_changed();
+    hud_notify_level_changed();
     hud_update();
     /* HP dirty is queued first */
     CHECK(vram_buffer_len == 6U);

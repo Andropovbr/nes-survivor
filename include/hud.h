@@ -14,6 +14,9 @@
 
 void hud_init(void);
 void hud_update(void);
+void hud_notify_hp_changed(void);
+void hud_notify_xp_changed(void);
+void hud_notify_level_changed(void);
 uint8_t hud_vram_length(void);
 
 #ifdef UNIT_TEST

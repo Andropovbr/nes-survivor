@@ -96,6 +96,7 @@ test-runtime: $(ROM)
 	$(MESEN) --testrunner $(ROM) tests/mesen_game_states.lua
 	$(MESEN) --testrunner $(ROM) tests/mesen_player.lua
 	$(MESEN) --testrunner $(ROM) tests/mesen_player_damage.lua
+	$(MESEN) --testrunner $(ROM) tests/mesen_level_up.lua
 
 test-performance: $(PERF_ROM)
 	$(MESEN) --testrunner $(PERF_ROM) tests/mesen_bat_stress.lua

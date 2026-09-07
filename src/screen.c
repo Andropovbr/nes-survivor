@@ -235,6 +235,7 @@ void screen_show_level_up_modal(uint8_t cursor)
     uint8_t r;
 
     screen_disable_rendering();
+    screen_hide_all_sprites();
     for (r = 0U; r < LEVEL_UP_MODAL_ROW_COUNT; ++r) {
         screen_write_text((uint8_t)(LEVEL_UP_MODAL_ROW_START + r),
                           LEVEL_UP_MODAL_COL_START,
@@ -251,20 +252,11 @@ void screen_show_level_up_modal(uint8_t cursor)
     screen_enable_rendering();
 }
 
+volatile uint8_t screen_level_up_cursor_update;
+
 void screen_update_level_up_cursor(uint8_t cursor)
 {
-    uint8_t i;
-
-    screen_disable_rendering();
-    for (i = 0U; i < LEVEL_UP_CURSOR_ROW_COUNT; ++i) {
-        ppu_set_address((uint16_t)(SCREEN_NAMETABLE_BASE +
-                                   (uint16_t)(LEVEL_UP_CURSOR_ROW_START + i) *
-                                   SCREEN_TILE_COLUMNS +
-                                   LEVEL_UP_CURSOR_COLUMN));
-        PPU_REGISTER(NES_PPUDATA) = (i == cursor) ? (uint8_t)'>' : (uint8_t)' ';
-    }
-    screen_wait_for_vblank();
-    screen_enable_rendering();
+    screen_level_up_cursor_update = (uint8_t)(cursor + 1U);
 }
 
 void screen_hide_level_up_modal(void)

@@ -32,9 +32,9 @@ Implementação de um HUD completo desenhado na Nametable 0 de background (linha
 ### Trecho de código relevante
 
 ```c
-/* Enfileiramento limitado no buffer de VRAM em src/hud.c */
+/* Bufferização de VRAM orientada a eventos com aritmética de 16 bits em src/hud.c */
 if ((dirty_flags & DIRTY_XP) != 0U) {
-    fill_count = (uint8_t)(((uint32_t)cached_xp * HUD_XP_BAR_TILES) / cached_next_level_xp);
+    fill_count = (uint8_t)(((uint16_t)cached_xp * HUD_XP_BAR_TILES) / cached_next_level_xp);
     vram_buffer_addr_hi = 0x20U;
     vram_buffer_addr_lo = 0x12U;
     for (i = 0U; i < HUD_XP_BAR_TILES; ++i) {
@@ -49,7 +49,7 @@ if ((dirty_flags & DIRTY_XP) != 0U) {
 ; Execução da transferência na VBlank em src/nmi.s
 @check_vram_buffer:
     lda _vram_buffer_len
-    beq @restore_scroll
+    beq @check_cursor_update
     lda PPUSTATUS
     lda _vram_buffer_addr_hi
     sta PPUADDR
@@ -64,21 +64,26 @@ if ((dirty_flags & DIRTY_XP) != 0U) {
     bne @vram_copy
     lda #$00
     sta _vram_buffer_len
+
+@check_cursor_update:
+    lda _screen_level_up_cursor_update
+    beq @restore_scroll
+    ; transfere os 3 tiles da coluna do cursor com segurança na VBlank
 ```
 
 ### Considerações de hardware NES
 
 - **0 Sprites para HUD:** Manter todos os elementos do HUD no background previne cintilação e preserva o limite de 8 sprites por scanline para o gameplay.
-- **Segurança de NMI/VBlank:** Escritas na PPU isoladas estritamente na VBlank com no máximo 10 bytes por frame, bem abaixo do limite de 2.273 ciclos da VBlank NTSC.
-- **Aritmética Inteira:** Toda a matemática usa tipos inteiros de largura fixa (`uint8_t`, `uint16_t`, `uint32_t`).
+- **Segurança de NMI/VBlank:** Escritas na PPU isoladas estritamente na VBlank com no máximo 10 bytes por frame (mais 3 bytes para o cursor durante navegação do modal), eliminando desativação forçada de renderização no meio do frame e prevenindo corrupção de DRAM da OAM.
+- **Aritmética Inteira e Flags Dirty por Evento:** Substituído o polling a cada frame e rotinas lentas de 32 bits por notificações de evento (`hud_notify_*`) e aritmética de 16 bits, garantindo 0 frames perdidos (`gameplay_skipped=0`) no teste de estresse de morcegos.
 
 ### Impacto em recursos e memória
 
-- **Zero Page:** 28 bytes utilizados (0 bytes de variação).
-- **RAM / BSS:** 188 bytes utilizados (+60 bytes de variação, 287 bytes livres).
-- **PRG-ROM:** 10.597 bytes utilizados (+2.194 bytes de variação, 22.171 bytes livres / 67,7% de folga).
+- **Zero Page:** 28 bytes utilizados ($1C de $1E, 2 bytes livres, inalterado).
+- **RAM (DATA + BSS):** 219 bytes utilizados (37 bytes DATA + 182 bytes BSS, +54 bytes em relação aos 165 da base, 293 bytes livres).
+- **PRG-ROM:** 10.307 bytes utilizados (+1.904 bytes em relação aos 8.403 bytes da base, 22.461 bytes livres / 68,5% de folga).
 - **CHR-ROM:** 8.192 bytes (Tabela 0 para sprites, Tabela 1 para background).
-- **OAM Shadow:** 256 bytes (0 sprites alocados para o HUD).
+- **OAM Shadow:** 256 bytes (0 sprites alocados para o HUD, todos os 64 sprites livres para gameplay).
 
 ### Validação exata realizada
 
@@ -88,3 +93,6 @@ if ((dirty_flags & DIRTY_XP) != 0U) {
   - `tests/mesen_game_states.lua`: Passou (175 frames).
   - `tests/mesen_player.lua`: Passou (450 frames).
   - `tests/mesen_player_damage.lua`: Passou (546 frames).
+  - `tests/mesen_level_up.lua`: Passou (77 frames; valida ganho de XP, pausa do modal, navegação do cursor, aplicação de atributos e despausa).
+- `make test-performance`: Teste de estresse de morcegos no Mesen aprovado:
+  - `tests/mesen_bat_stress.lua`: Passou (1.750 frames, 12 morcegos máx, 1.740 NMIs, 1.740 updates, `gameplay_skipped=0`).

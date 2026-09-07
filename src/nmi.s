@@ -11,6 +11,7 @@
 .import _screen_title_prompt_text
 .import _screen_title_prompt_update
 .importzp _nes_frame_counter
+.import _screen_level_up_cursor_update
 .import _vram_buffer_len
 .import _vram_buffer_addr_hi
 .import _vram_buffer_addr_lo
@@ -79,7 +80,7 @@ TITLE_PROMPT_SHOW    = 1
 
 @check_vram_buffer:
     lda _vram_buffer_len
-    beq @restore_scroll
+    beq @check_cursor_update
     lda PPUSTATUS
     lda _vram_buffer_addr_hi
     sta PPUADDR
@@ -94,6 +95,47 @@ TITLE_PROMPT_SHOW    = 1
     bne @vram_copy
     lda #$00
     sta _vram_buffer_len
+
+@check_cursor_update:
+    lda _screen_level_up_cursor_update
+    beq @restore_scroll
+    sec
+    sbc #$01
+    tay
+
+    lda PPUSTATUS
+    lda #$21
+    sta PPUADDR
+    lda #$AA
+    sta PPUADDR
+    ldx #$20
+    cpy #$00
+    bne :+
+    ldx #$3E
+:   stx PPUDATA
+
+    lda #$21
+    sta PPUADDR
+    lda #$CA
+    sta PPUADDR
+    ldx #$20
+    cpy #$01
+    bne :+
+    ldx #$3E
+:   stx PPUDATA
+
+    lda #$21
+    sta PPUADDR
+    lda #$EA
+    sta PPUADDR
+    ldx #$20
+    cpy #$02
+    bne :+
+    ldx #$3E
+:   stx PPUDATA
+
+    lda #$00
+    sta _screen_level_up_cursor_update
 
 @restore_scroll:
     lda #$00

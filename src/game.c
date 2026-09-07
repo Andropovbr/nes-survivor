@@ -81,8 +81,16 @@ void game_update(void)
         if (level_up_is_confirmed() != 0U) {
             player_apply_level_up(level_up_cursor());
             screen_hide_level_up_modal();
+            hud_notify_hp_changed();
+            hud_notify_xp_changed();
+            hud_notify_level_changed();
             hud_update();
-            game_flow_exit_level_up();
+            if (player_level_up_pending() != 0U) {
+                level_up_init();
+                screen_show_level_up_modal(level_up_cursor());
+            } else {
+                game_flow_exit_level_up();
+            }
         }
         return;
     }
@@ -106,6 +114,7 @@ void game_update(void)
         enemy_overlaps_player(player_hitbox_x(), player_hitbox_y()) != 0U &&
         player_take_contact_damage() != 0U) {
         nes_play_player_hit_sfx();
+        hud_notify_hp_changed();
         if (player_hp() == 0U) {
             game_flow_enter_game_over();
             screen_show_game_over();
@@ -120,6 +129,13 @@ void game_update(void)
     collected_xp = xp_gem_update(player_x(), player_y());
     if (collected_xp != 0U) {
         player_add_xp(collected_xp);
+        hud_notify_xp_changed();
+        if (player_level_up_pending() != 0U) {
+            level_up_init();
+            screen_show_level_up_modal(level_up_cursor());
+            game_flow_enter_level_up();
+            return;
+        }
     }
     oam_renderer_begin(&oam_renderer);
     player_render(&oam_renderer);
@@ -128,12 +144,6 @@ void game_update(void)
     enemy_render(&oam_renderer);
     xp_gem_render(&oam_renderer);
     hud_update();
-    if (player_level_up_pending() != 0U) {
-        level_up_init();
-        screen_show_level_up_modal(level_up_cursor());
-        game_flow_enter_level_up();
-        return;
-    }
 }
 
 GameState game_state(void)
