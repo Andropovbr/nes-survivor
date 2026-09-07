@@ -166,6 +166,13 @@ static void test_game_flow(void)
     game_flow_update(input_pressed());
     CHECK(game_flow_state() == GAME_STATE_PLAYING);
 
+    game_flow_enter_level_up();
+    CHECK(game_flow_state() == GAME_STATE_LEVEL_UP);
+    game_flow_update(BUTTON_A);
+    CHECK(game_flow_state() == GAME_STATE_LEVEL_UP);
+    game_flow_exit_level_up();
+    CHECK(game_flow_state() == GAME_STATE_PLAYING);
+
     game_flow_init();
     CHECK(game_flow_state() == GAME_STATE_PRESENTED_BY);
     CHECK(game_flow_title_prompt_visible() == 0U);

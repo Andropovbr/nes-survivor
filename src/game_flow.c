@@ -49,12 +49,25 @@ void game_flow_update(uint8_t pressed_buttons)
     case GAME_STATE_PLAYING:
         break;
 
+    case GAME_STATE_LEVEL_UP:
+        break;
+
     case GAME_STATE_GAME_OVER:
         if ((pressed_buttons & BUTTON_START) != 0U) {
             enter_title();
         }
         break;
     }
+}
+
+void game_flow_enter_level_up(void)
+{
+    current_state = GAME_STATE_LEVEL_UP;
+}
+
+void game_flow_exit_level_up(void)
+{
+    current_state = GAME_STATE_PLAYING;
 }
 
 void game_flow_enter_game_over(void)
