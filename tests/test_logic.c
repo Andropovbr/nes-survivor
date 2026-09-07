@@ -2,6 +2,7 @@
 
 #include "enemy.h"
 #include "game_flow.h"
+#include "hud.h"
 #include "input.h"
 #include "level_up.h"
 #include "metasprite.h"
@@ -54,6 +55,10 @@ static uint8_t failures;
 
 /* Page alignment matters only in the NES linker target, not pure logic tests. */
 uint8_t oam_shadow[256];
+volatile uint8_t vram_buffer_len;
+uint8_t vram_buffer_addr_hi;
+uint8_t vram_buffer_addr_lo;
+uint8_t vram_buffer_data[32];
 
 #define CHECK(condition)       \
     do {                       \
@@ -964,6 +969,91 @@ static void test_level_up_menu(void)
     CHECK(level_up_is_confirmed() == 1U);
 }
 
+static void test_hud_buffering(void)
+{
+    uint8_t i;
+
+    player_init();
+    hud_init();
+    CHECK(hud_dirty_flags() == 0U);
+    CHECK(hud_vram_length() == 0U);
+    CHECK(vram_buffer_len == 0U);
+
+    /* No change -> hud_update() does nothing */
+    hud_update();
+    CHECK(hud_dirty_flags() == 0U);
+    CHECK(vram_buffer_len == 0U);
+
+    /* Damage player -> HP dirty */
+    CHECK(player_take_contact_damage() == 1U);
+    CHECK(player_hp() == 4U);
+    hud_update();
+    CHECK(vram_buffer_len == 6U);
+    CHECK(vram_buffer_addr_hi == 0x20U);
+    CHECK(vram_buffer_addr_lo == 0x05U);
+    /* Initial max hp is 5, hp is 4: (4 * 6) / 5 = 4 full tiles, 2 empty */
+    for (i = 0U; i < 4U; ++i) {
+        CHECK(vram_buffer_data[i] == HUD_TILE_BAR_FULL);
+    }
+    for (i = 4U; i < 6U; ++i) {
+        CHECK(vram_buffer_data[i] == HUD_TILE_BAR_EMPTY);
+    }
+
+    /* Simulate NMI transfer completion */
+    vram_buffer_len = 0U;
+
+    /* Grant XP -> XP dirty */
+    player_add_xp(3U); /* XP = 3, next_level_xp = 5 */
+    hud_update();
+    CHECK(vram_buffer_len == 10U);
+    CHECK(vram_buffer_addr_hi == 0x20U);
+    CHECK(vram_buffer_addr_lo == 0x12U);
+    /* (3 * 10) / 5 = 6 full tiles, 4 empty */
+    for (i = 0U; i < 6U; ++i) {
+        CHECK(vram_buffer_data[i] == HUD_TILE_BAR_FULL);
+    }
+    for (i = 6U; i < 10U; ++i) {
+        CHECK(vram_buffer_data[i] == HUD_TILE_BAR_EMPTY);
+    }
+
+    /* Simulate NMI transfer completion */
+    vram_buffer_len = 0U;
+
+    /* Advance to level 2 */
+    player_add_xp(2U);
+    player_apply_level_up(1U); /* Level = 2, max_hp = 6, hp = 5, xp = 0, next_level_xp = 12 */
+    hud_update();
+    /* HP dirty is queued first */
+    CHECK(vram_buffer_len == 6U);
+    CHECK(vram_buffer_addr_hi == 0x20U);
+    CHECK(vram_buffer_addr_lo == 0x05U);
+
+    /* Simulate NMI transfer completion */
+    vram_buffer_len = 0U;
+    hud_update();
+    /* XP dirty is queued second */
+    CHECK(vram_buffer_len == 10U);
+    CHECK(vram_buffer_addr_hi == 0x20U);
+    CHECK(vram_buffer_addr_lo == 0x12U);
+
+    /* Simulate NMI transfer completion */
+    vram_buffer_len = 0U;
+    hud_update();
+    /* Level dirty is queued third */
+    CHECK(vram_buffer_len == 2U);
+    CHECK(vram_buffer_addr_hi == 0x20U);
+    CHECK(vram_buffer_addr_lo == 0x1EU);
+    CHECK(vram_buffer_data[0] == (uint8_t)'0');
+    CHECK(vram_buffer_data[1] == (uint8_t)'2');
+
+    /* Simulate NMI transfer completion */
+    vram_buffer_len = 0U;
+    hud_update();
+    /* All dirty flags resolved */
+    CHECK(hud_dirty_flags() == 0U);
+    CHECK(vram_buffer_len == 0U);
+}
+
 int main(void)
 {
     test_rng();
@@ -986,5 +1076,6 @@ int main(void)
     test_enemy_separation_bounds();
     test_enemy_facing_and_horizontal_flip();
     test_level_up_menu();
+    test_hud_buffering();
     return failures;
 }

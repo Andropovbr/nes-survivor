@@ -5,6 +5,10 @@
 .export _nes_play_player_hit_sfx
 .export _oam_shadow
 .exportzp _nes_frame_counter
+.export _vram_buffer_len
+.export _vram_buffer_addr_hi
+.export _vram_buffer_addr_lo
+.export _vram_buffer_data
 
 JOY1 = $4016
 APUSTATUS = $4015
@@ -19,6 +23,12 @@ controller_bits:    .res 1
 .segment "OAM"
 _oam_shadow: .res 256
 .assert <_oam_shadow = $00, lderror, "OAM shadow must be page-aligned"
+
+.segment "BSS"
+_vram_buffer_len:      .res 1
+_vram_buffer_addr_hi:  .res 1
+_vram_buffer_addr_lo:  .res 1
+_vram_buffer_data:     .res 32
 
 .segment "CODE"
 

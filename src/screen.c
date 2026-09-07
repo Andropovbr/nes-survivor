@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#include "hud.h"
 #include "nes.h"
 
 #define SCREEN_NAMETABLE_BASE UINT16_C(0x2000)
@@ -33,6 +34,33 @@ static const uint8_t game_over_text[] = "GAME OVER";
 /* NMI reads these symbols directly for the fixed 11-tile VBlank update. */
 const uint8_t screen_title_prompt_text[] = "PRESS START";
 volatile uint8_t screen_title_prompt_update;
+
+static const uint8_t hud_initial_rows[64] = {
+    'H', 'P', ':', HUD_TILE_HEART, ' ',
+    HUD_TILE_BAR_FULL, HUD_TILE_BAR_FULL, HUD_TILE_BAR_FULL,
+    HUD_TILE_BAR_FULL, HUD_TILE_BAR_FULL, HUD_TILE_BAR_FULL,
+    ' ', ' ', ' ',
+    'X', 'P', ':', ' ',
+    HUD_TILE_BAR_EMPTY, HUD_TILE_BAR_EMPTY, HUD_TILE_BAR_EMPTY,
+    HUD_TILE_BAR_EMPTY, HUD_TILE_BAR_EMPTY, HUD_TILE_BAR_EMPTY,
+    HUD_TILE_BAR_EMPTY, HUD_TILE_BAR_EMPTY, HUD_TILE_BAR_EMPTY,
+    HUD_TILE_BAR_EMPTY,
+    'L', 'V',
+    '0', '1',
+
+    'W', 'P', 'N', ':', ' ',
+    HUD_TILE_SWORD, ' ',
+    HUD_TILE_SLOT_EMPTY, ' ',
+    HUD_TILE_SLOT_EMPTY, ' ',
+    HUD_TILE_SLOT_EMPTY, ' ',
+    ' ', ' ', ' ',
+    'B', 'N', 'S', ':', ' ',
+    HUD_TILE_SLOT_EMPTY, ' ',
+    HUD_TILE_SLOT_EMPTY, ' ',
+    HUD_TILE_SLOT_EMPTY, ' ',
+    HUD_TILE_SLOT_EMPTY, ' ',
+    ' ', ' ', ' '
+};
 
 static void ppu_set_address(uint16_t address)
 {
@@ -143,10 +171,17 @@ void screen_set_title_prompt_visible(uint8_t visible)
 
 void screen_show_gameplay(void)
 {
+    uint8_t i;
+
     screen_title_prompt_update = TITLE_PROMPT_UPDATE_NONE;
     screen_disable_rendering();
     screen_hide_all_sprites();
     screen_clear_nametable();
+    screen_load_background_palette();
+    ppu_set_address(SCREEN_NAMETABLE_BASE);
+    for (i = 0U; i < 64U; ++i) {
+        PPU_REGISTER(NES_PPUDATA) = hud_initial_rows[i];
+    }
     screen_wait_for_vblank();
     screen_enable_rendering();
 }
