@@ -3,6 +3,7 @@
 #include "enemy.h"
 #include "game_flow.h"
 #include "input.h"
+#include "level_up.h"
 #include "metasprite.h"
 #include "nes.h"
 #include "player.h"
@@ -913,6 +914,56 @@ static void test_xp_gem_collection_and_player_xp_integration(void)
     CHECK(player_level_up_pending() == 1U); /* Level 1 -> 2 requires 5 XP */
 }
 
+static void test_level_up_menu(void)
+{
+    level_up_init();
+    CHECK(level_up_cursor() == 0U);
+    CHECK(level_up_is_confirmed() == 0U);
+
+    /* Move down: 0 -> 1 -> 2 -> 0 */
+    level_up_update(BUTTON_DOWN);
+    CHECK(level_up_cursor() == 1U);
+    CHECK(level_up_is_confirmed() == 0U);
+
+    level_up_update(BUTTON_DOWN);
+    CHECK(level_up_cursor() == 2U);
+    CHECK(level_up_is_confirmed() == 0U);
+
+    level_up_update(BUTTON_DOWN);
+    CHECK(level_up_cursor() == 0U);
+    CHECK(level_up_is_confirmed() == 0U);
+
+    /* Move up: 0 -> 2 -> 1 -> 0 */
+    level_up_update(BUTTON_UP);
+    CHECK(level_up_cursor() == 2U);
+    CHECK(level_up_is_confirmed() == 0U);
+
+    level_up_update(BUTTON_UP);
+    CHECK(level_up_cursor() == 1U);
+    CHECK(level_up_is_confirmed() == 0U);
+
+    level_up_update(BUTTON_UP);
+    CHECK(level_up_cursor() == 0U);
+    CHECK(level_up_is_confirmed() == 0U);
+
+    /* Test no button does not move cursor or confirm */
+    level_up_update(0U);
+    CHECK(level_up_cursor() == 0U);
+    CHECK(level_up_is_confirmed() == 0U);
+
+    /* Confirm with BUTTON_A */
+    level_up_update(BUTTON_A);
+    CHECK(level_up_cursor() == 0U);
+    CHECK(level_up_is_confirmed() == 1U);
+
+    /* Re-init and test confirm with BUTTON_START */
+    level_up_init();
+    CHECK(level_up_cursor() == 0U);
+    CHECK(level_up_is_confirmed() == 0U);
+    level_up_update(BUTTON_START);
+    CHECK(level_up_is_confirmed() == 1U);
+}
+
 int main(void)
 {
     test_rng();
@@ -934,5 +985,6 @@ int main(void)
     test_enemy_sword_collision_staggering();
     test_enemy_separation_bounds();
     test_enemy_facing_and_horizontal_flip();
+    test_level_up_menu();
     return failures;
 }
