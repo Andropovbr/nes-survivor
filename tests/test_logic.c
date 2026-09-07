@@ -1054,6 +1054,44 @@ static void test_hud_buffering(void)
     CHECK(vram_buffer_len == 0U);
 }
 
+static void test_gameplay_level_up_flow(void)
+{
+    player_init();
+    game_flow_init();
+    hud_init();
+
+    /* Transition game flow to playing */
+    game_flow_update(BUTTON_START);
+    game_flow_update(BUTTON_START);
+    CHECK(game_flow_state() == GAME_STATE_PLAYING);
+    CHECK(player_level() == 1U);
+    CHECK(player_level_up_pending() == 0U);
+
+    /* Test simulated level up flow: player_add_xp(5U) sets player_level_up_pending() == 1U */
+    player_add_xp(5U);
+    CHECK(player_level_up_pending() == 1U);
+
+    /* Test game_flow_enter_level_up() transitions state to GAME_STATE_LEVEL_UP */
+    game_flow_enter_level_up();
+    CHECK(game_flow_state() == GAME_STATE_LEVEL_UP);
+
+    /* Test level_up_init(), level_up_update(BUTTON_A) */
+    level_up_init();
+    CHECK(level_up_cursor() == 0U);
+    CHECK(level_up_is_confirmed() == 0U);
+    level_up_update(BUTTON_A);
+    CHECK(level_up_is_confirmed() == 1U);
+
+    /* Test player_apply_level_up(level_up_cursor()) updates level to 2, clears pending */
+    player_apply_level_up(level_up_cursor());
+    CHECK(player_level() == 2U);
+    CHECK(player_level_up_pending() == 0U);
+
+    /* Test game_flow_exit_level_up() transitions state back to GAME_STATE_PLAYING */
+    game_flow_exit_level_up();
+    CHECK(game_flow_state() == GAME_STATE_PLAYING);
+}
+
 int main(void)
 {
     test_rng();
@@ -1077,5 +1115,6 @@ int main(void)
     test_enemy_facing_and_horizontal_flip();
     test_level_up_menu();
     test_hud_buffering();
+    test_gameplay_level_up_flow();
     return failures;
 }

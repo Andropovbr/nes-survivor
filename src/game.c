@@ -2,7 +2,9 @@
 
 #include "enemy.h"
 #include "game_flow.h"
+#include "hud.h"
 #include "input.h"
+#include "level_up.h"
 #include "metasprite.h"
 #include "nes.h"
 #include "player.h"
@@ -20,6 +22,7 @@ static void gameplay_init(void)
     weapon_sword_init();
     enemy_init();
     xp_gem_init();
+    hud_init();
     collision_phase = 0U;
     oam_renderer_init(&oam_renderer);
     player_render(&oam_renderer);
@@ -69,6 +72,21 @@ void game_update(void)
     uint8_t sword_active;
     uint16_t collected_xp;
 
+    if (game_flow_state() == GAME_STATE_LEVEL_UP) {
+        uint8_t prev_cursor = level_up_cursor();
+        level_up_update(input_pressed());
+        if (level_up_cursor() != prev_cursor) {
+            screen_update_level_up_cursor(level_up_cursor());
+        }
+        if (level_up_is_confirmed() != 0U) {
+            player_apply_level_up(level_up_cursor());
+            screen_hide_level_up_modal();
+            hud_update();
+            game_flow_exit_level_up();
+        }
+        return;
+    }
+
     if (game_flow_state() != GAME_STATE_PLAYING) {
         initial_screens_update();
         return;
@@ -109,6 +127,13 @@ void game_update(void)
         &oam_renderer, player_x(), player_y(), facing_left);
     enemy_render(&oam_renderer);
     xp_gem_render(&oam_renderer);
+    hud_update();
+    if (player_level_up_pending() != 0U) {
+        level_up_init();
+        screen_show_level_up_modal(level_up_cursor());
+        game_flow_enter_level_up();
+        return;
+    }
 }
 
 GameState game_state(void)

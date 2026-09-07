@@ -8,5 +8,8 @@ void screen_show_title(void);
 void screen_set_title_prompt_visible(uint8_t visible);
 void screen_show_gameplay(void);
 void screen_show_game_over(void);
+void screen_show_level_up_modal(uint8_t cursor);
+void screen_update_level_up_cursor(uint8_t cursor);
+void screen_hide_level_up_modal(void);
 
 #endif

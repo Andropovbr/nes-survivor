@@ -21,6 +21,14 @@
 #define GAME_OVER_ROW          14U
 #define GAME_OVER_COLUMN       11U
 
+#define LEVEL_UP_MODAL_ROW_START    10U
+#define LEVEL_UP_MODAL_ROW_COUNT    8U
+#define LEVEL_UP_MODAL_COL_START    8U
+#define LEVEL_UP_MODAL_COL_COUNT    16U
+#define LEVEL_UP_CURSOR_ROW_START   13U
+#define LEVEL_UP_CURSOR_ROW_COUNT   3U
+#define LEVEL_UP_CURSOR_COLUMN      10U
+
 #define TITLE_PROMPT_UPDATE_NONE 0U
 #define TITLE_PROMPT_UPDATE_SHOW 1U
 #define TITLE_PROMPT_UPDATE_HIDE 2U
@@ -31,6 +39,25 @@ static const uint8_t presented_by_text[] = "PRESENTED BY";
 static const uint8_t credit_text[] = "CODIGO E CARTUCHO";
 static const uint8_t title_text[] = "NES SURVIVOR";
 static const uint8_t game_over_text[] = "GAME OVER";
+static const uint8_t modal_row_top[]     = "+--------------+";
+static const uint8_t modal_row_title[]   = "|  LEVEL UP!   |";
+static const uint8_t modal_row_empty[]   = "|              |";
+static const uint8_t modal_row_choice1[] = "|   1. SWORD +1|";
+static const uint8_t modal_row_choice2[] = "|   2. MAX HP+1|";
+static const uint8_t modal_row_choice3[] = "|   3. SPEED +1|";
+static const uint8_t modal_row_bottom[]  = "+--------------+";
+
+static const uint8_t * const modal_rows[LEVEL_UP_MODAL_ROW_COUNT] = {
+    modal_row_top,
+    modal_row_title,
+    modal_row_empty,
+    modal_row_choice1,
+    modal_row_choice2,
+    modal_row_choice3,
+    modal_row_empty,
+    modal_row_bottom
+};
+
 /* NMI reads these symbols directly for the fixed 11-tile VBlank update. */
 const uint8_t screen_title_prompt_text[] = "PRESS START";
 volatile uint8_t screen_title_prompt_update;
@@ -91,11 +118,16 @@ static void screen_wait_for_vblank(void)
 
 static void screen_clear_nametable(void)
 {
-    uint16_t remaining;
+    uint8_t page;
+    uint8_t tile;
 
     ppu_set_address(SCREEN_NAMETABLE_BASE);
-    for (remaining = SCREEN_TILE_COUNT; remaining != 0U; --remaining) {
-        PPU_REGISTER(NES_PPUDATA) = SCREEN_BLANK_TILE;
+    for (page = 0U; page < 4U; ++page) {
+        tile = 0U;
+        do {
+            PPU_REGISTER(NES_PPUDATA) = SCREEN_BLANK_TILE;
+            ++tile;
+        } while (tile != 0U);
     }
 }
 
@@ -194,6 +226,62 @@ void screen_show_game_over(void)
     screen_clear_nametable();
     screen_load_background_palette();
     screen_write_text(GAME_OVER_ROW, GAME_OVER_COLUMN, game_over_text);
+    screen_wait_for_vblank();
+    screen_enable_rendering();
+}
+
+void screen_show_level_up_modal(uint8_t cursor)
+{
+    uint8_t r;
+
+    screen_disable_rendering();
+    for (r = 0U; r < LEVEL_UP_MODAL_ROW_COUNT; ++r) {
+        screen_write_text((uint8_t)(LEVEL_UP_MODAL_ROW_START + r),
+                          LEVEL_UP_MODAL_COL_START,
+                          modal_rows[r]);
+    }
+    if (cursor < LEVEL_UP_CURSOR_ROW_COUNT) {
+        ppu_set_address((uint16_t)(SCREEN_NAMETABLE_BASE +
+                                   (uint16_t)(LEVEL_UP_CURSOR_ROW_START + cursor) *
+                                   SCREEN_TILE_COLUMNS +
+                                   LEVEL_UP_CURSOR_COLUMN));
+        PPU_REGISTER(NES_PPUDATA) = (uint8_t)'>';
+    }
+    screen_wait_for_vblank();
+    screen_enable_rendering();
+}
+
+void screen_update_level_up_cursor(uint8_t cursor)
+{
+    uint8_t i;
+
+    screen_disable_rendering();
+    for (i = 0U; i < LEVEL_UP_CURSOR_ROW_COUNT; ++i) {
+        ppu_set_address((uint16_t)(SCREEN_NAMETABLE_BASE +
+                                   (uint16_t)(LEVEL_UP_CURSOR_ROW_START + i) *
+                                   SCREEN_TILE_COLUMNS +
+                                   LEVEL_UP_CURSOR_COLUMN));
+        PPU_REGISTER(NES_PPUDATA) = (i == cursor) ? (uint8_t)'>' : (uint8_t)' ';
+    }
+    screen_wait_for_vblank();
+    screen_enable_rendering();
+}
+
+void screen_hide_level_up_modal(void)
+{
+    uint8_t r;
+    uint8_t c;
+
+    screen_disable_rendering();
+    for (r = 0U; r < LEVEL_UP_MODAL_ROW_COUNT; ++r) {
+        ppu_set_address((uint16_t)(SCREEN_NAMETABLE_BASE +
+                                   (uint16_t)(LEVEL_UP_MODAL_ROW_START + r) *
+                                   SCREEN_TILE_COLUMNS +
+                                   LEVEL_UP_MODAL_COL_START));
+        for (c = 0U; c < LEVEL_UP_MODAL_COL_COUNT; ++c) {
+            PPU_REGISTER(NES_PPUDATA) = SCREEN_BLANK_TILE;
+        }
+    }
     screen_wait_for_vblank();
     screen_enable_rendering();
 }
