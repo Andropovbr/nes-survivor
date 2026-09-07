@@ -6,6 +6,9 @@
 /* Reserved gameplay/content capacities; active pool limits live with systems. */
 #define MAX_EQUIPPED_WEAPONS    4U
 #define LEVEL_UP_CHOICE_COUNT   3U
+#define LEVEL_UP_MAX_TABLE_LEVEL 10U
+#define WEAPON_SLOT_EMPTY        0xFFU
+#define BONUS_SLOT_EMPTY         0xFFU
 #define MAX_PLAYABLE_CHARACTERS 8U
 #define MAX_WEAPON_TYPES        16U
 #define MAX_ENEMY_TYPES         16U

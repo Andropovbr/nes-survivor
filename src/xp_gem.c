@@ -15,7 +15,7 @@
 static uint8_t gem_x_positions[MAX_ACTIVE_XP_GEMS];
 static uint8_t gem_y_positions[MAX_ACTIVE_XP_GEMS];
 static uint8_t gem_active[MAX_ACTIVE_XP_GEMS];
-/* Condensed drop units are bookkeeping only; collection grants no XP yet. */
+/* Drop units tracked per gem (condensed drops accumulate here). */
 static uint16_t gem_drop_units[MAX_ACTIVE_XP_GEMS];
 static uint8_t pool_high_water;
 static uint8_t collection_scan_index;
@@ -86,12 +86,13 @@ void xp_gem_spawn(uint8_t x, uint8_t y)
     }
 }
 
-void xp_gem_update(uint8_t player_x, uint8_t player_y)
+uint16_t xp_gem_update(uint8_t player_x, uint8_t player_y)
 {
     uint8_t index;
+    uint16_t collected = 0U;
 
     if (pool_high_water == 0U) {
-        return;
+        return 0U;
     }
     if (collection_scan_index >= pool_high_water) {
         collection_scan_index = 0U;
@@ -107,6 +108,7 @@ void xp_gem_update(uint8_t player_x, uint8_t player_y)
              (uint8_t)(player_x - gem_x) < XP_GEM_WIDTH_PIXELS) &&
             ((uint8_t)(gem_y - player_y) < PLAYER_HEIGHT_PIXELS ||
              (uint8_t)(player_y - gem_y) < XP_GEM_HEIGHT_PIXELS)) {
+            collected = gem_drop_units[index];
             gem_active[index] = 0U;
             gem_drop_units[index] = 0U;
         }
@@ -119,6 +121,8 @@ void xp_gem_update(uint8_t player_x, uint8_t player_y)
     if (collection_scan_index >= pool_high_water) {
         collection_scan_index = 0U;
     }
+
+    return collected;
 }
 
 void xp_gem_render(OamRenderer *renderer)

@@ -11,6 +11,11 @@
 .import _screen_title_prompt_text
 .import _screen_title_prompt_update
 .importzp _nes_frame_counter
+.import _screen_level_up_cursor_update
+.import _vram_buffer_len
+.import _vram_buffer_addr_hi
+.import _vram_buffer_addr_lo
+.import _vram_buffer_data
 
 OAMADDR   = $2003
 PPUSTATUS = $2002
@@ -38,7 +43,7 @@ TITLE_PROMPT_SHOW    = 1
     sta OAMDMA
 
     lda _screen_title_prompt_update
-    beq @restore_scroll
+    beq @check_vram_buffer
 
     ; Reading status resets the shared $2005/$2006 write latch. The following
     ; bounded transfer is wholly inside VBlank and scroll is restored below.
@@ -72,6 +77,65 @@ TITLE_PROMPT_SHOW    = 1
 @finish_prompt_update:
     lda #$00
     sta _screen_title_prompt_update
+
+@check_vram_buffer:
+    lda _vram_buffer_len
+    beq @check_cursor_update
+    lda PPUSTATUS
+    lda _vram_buffer_addr_hi
+    sta PPUADDR
+    lda _vram_buffer_addr_lo
+    sta PPUADDR
+    ldx #$00
+@vram_copy:
+    lda _vram_buffer_data,x
+    sta PPUDATA
+    inx
+    cpx _vram_buffer_len
+    bne @vram_copy
+    lda #$00
+    sta _vram_buffer_len
+
+@check_cursor_update:
+    lda _screen_level_up_cursor_update
+    beq @restore_scroll
+    sec
+    sbc #$01
+    tay
+
+    lda PPUSTATUS
+    lda #$21
+    sta PPUADDR
+    lda #$AA
+    sta PPUADDR
+    ldx #$20
+    cpy #$00
+    bne :+
+    ldx #$3E
+:   stx PPUDATA
+
+    lda #$21
+    sta PPUADDR
+    lda #$CA
+    sta PPUADDR
+    ldx #$20
+    cpy #$01
+    bne :+
+    ldx #$3E
+:   stx PPUDATA
+
+    lda #$21
+    sta PPUADDR
+    lda #$EA
+    sta PPUADDR
+    ldx #$20
+    cpy #$02
+    bne :+
+    ldx #$3E
+:   stx PPUDATA
+
+    lda #$00
+    sta _screen_level_up_cursor_update
 
 @restore_scroll:
     lda #$00

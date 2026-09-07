@@ -2,7 +2,9 @@
 
 #include "enemy.h"
 #include "game_flow.h"
+#include "hud.h"
 #include "input.h"
+#include "level_up.h"
 #include "metasprite.h"
 #include "nes.h"
 #include "player.h"
@@ -53,6 +55,10 @@ static uint8_t failures;
 
 /* Page alignment matters only in the NES linker target, not pure logic tests. */
 uint8_t oam_shadow[256];
+volatile uint8_t vram_buffer_len;
+uint8_t vram_buffer_addr_hi;
+uint8_t vram_buffer_addr_lo;
+uint8_t vram_buffer_data[32];
 
 #define CHECK(condition)       \
     do {                       \
@@ -164,6 +170,13 @@ static void test_game_flow(void)
     game_flow_update(input_pressed());
     input_test_apply(BUTTON_START);
     game_flow_update(input_pressed());
+    CHECK(game_flow_state() == GAME_STATE_PLAYING);
+
+    game_flow_enter_level_up();
+    CHECK(game_flow_state() == GAME_STATE_LEVEL_UP);
+    game_flow_update(BUTTON_A);
+    CHECK(game_flow_state() == GAME_STATE_LEVEL_UP);
+    game_flow_exit_level_up();
     CHECK(game_flow_state() == GAME_STATE_PLAYING);
 
     game_flow_init();
@@ -579,7 +592,7 @@ static void test_xp_gem_collection_condensation_and_rendering(void)
     CHECK(oam_shadow[2] == UINT8_C(0x03));
     CHECK(oam_shadow[3] == 16U);
 
-    xp_gem_update(16U, 40U);
+    CHECK(xp_gem_update(16U, 40U) == 2U);
     CHECK(xp_gem_active_count() == (uint8_t)(MAX_ACTIVE_XP_GEMS - 1U));
     CHECK(xp_gem_is_active(0U) == 0U);
     CHECK(xp_gem_drop_units(0U) == 0U);
@@ -763,6 +776,327 @@ static void test_sword_screen_edges_and_oam_saturation(void)
     CHECK(renderer.next_sprite == NES_OAM_SPRITE_CAPACITY);
 }
 
+static void test_player_xp_and_level_up(void)
+{
+    player_init();
+    CHECK(player_level() == 1U);
+    CHECK(player_xp() == 0U);
+    CHECK(player_next_level_xp() == 5U);
+    CHECK(player_level_up_pending() == 0U);
+    CHECK(player_max_hp() == PLAYER_INITIAL_HP);
+    CHECK(player_weapon(0U) == 0U); /* Slot 0 = Sword */
+    CHECK(player_weapon(1U) == 0xFFU); /* Slot 1 = Empty */
+    CHECK(player_weapon(4U) == 0xFFU); /* Out of bounds */
+    CHECK(player_bonus(0U) == 0xFFU);
+    CHECK(player_bonus(4U) == 0xFFU);
+
+    /* Add XP without reaching threshold */
+    player_add_xp(3U);
+    CHECK(player_xp() == 3U);
+    CHECK(player_level_up_pending() == 0U);
+
+    /* Add XP to reach threshold */
+    player_add_xp(2U);
+    CHECK(player_xp() == 5U);
+    CHECK(player_level_up_pending() == 1U);
+
+    /* Apply level up choice 1 (Max HP + 1) */
+    player_apply_level_up(1U);
+    CHECK(player_level() == 2U);
+    CHECK(player_xp() == 0U);
+    CHECK(player_next_level_xp() == 12U);
+    CHECK(player_level_up_pending() == 0U);
+    CHECK(player_max_hp() == (uint8_t)(PLAYER_INITIAL_HP + 1U));
+    CHECK(player_hp() == (uint8_t)(PLAYER_INITIAL_HP + 1U));
+
+    /* Test carry-over XP */
+    player_add_xp(15U);
+    CHECK(player_xp() == 15U);
+    CHECK(player_level_up_pending() == 1U);
+    player_apply_level_up(0U);
+    CHECK(player_level() == 3U);
+    CHECK(player_xp() == 3U); /* 15 - 12 */
+    CHECK(player_next_level_xp() == 22U);
+    CHECK(player_level_up_pending() == 0U);
+
+    /* Test progression through table bounds up to level 11 (+60 increment) */
+    player_add_xp(19U); /* 3 + 19 = 22 */
+    player_apply_level_up(0U); /* lvl 4 */
+    CHECK(player_level() == 4U);
+    CHECK(player_next_level_xp() == 35U);
+
+    player_add_xp(35U);
+    player_apply_level_up(0U); /* lvl 5 */
+    CHECK(player_level() == 5U);
+    CHECK(player_next_level_xp() == 52U);
+
+    player_add_xp(52U);
+    player_apply_level_up(0U); /* lvl 6 */
+    CHECK(player_level() == 6U);
+    CHECK(player_next_level_xp() == 75U);
+
+    player_add_xp(75U);
+    player_apply_level_up(0U); /* lvl 7 */
+    CHECK(player_level() == 7U);
+    CHECK(player_next_level_xp() == 105U);
+
+    player_add_xp(105U);
+    player_apply_level_up(0U); /* lvl 8 */
+    CHECK(player_level() == 8U);
+    CHECK(player_next_level_xp() == 145U);
+
+    player_add_xp(145U);
+    player_apply_level_up(0U); /* lvl 9 */
+    CHECK(player_level() == 9U);
+    CHECK(player_next_level_xp() == 200U);
+
+    player_add_xp(200U);
+    player_apply_level_up(0U); /* lvl 10: beyond table, 200 + 60 = 260 */
+    CHECK(player_level() == 10U);
+    CHECK(player_next_level_xp() == 260U);
+
+    player_add_xp(260U);
+    player_apply_level_up(0U); /* lvl 11: 260 + 60 = 320 */
+    CHECK(player_level() == 11U);
+    CHECK(player_next_level_xp() == 320U);
+
+    /* Test XP saturation */
+    player_add_xp(65535U);
+    CHECK(player_xp() == UINT16_MAX);
+    CHECK(player_level_up_pending() == 1U);
+}
+
+static void test_xp_gem_collection_and_player_xp_integration(void)
+{
+    uint8_t index;
+    uint16_t collected;
+
+    player_init();
+    xp_gem_init();
+    CHECK(player_xp() == 0U);
+
+    xp_gem_spawn(100U, 100U);
+    CHECK(xp_gem_active_count() == 1U);
+
+    /* Player not touching gem: returns 0, player XP unchanged */
+    collected = xp_gem_update(0U, 0U);
+    CHECK(collected == 0U);
+    if (collected != 0U) {
+        player_add_xp(collected);
+    }
+    CHECK(player_xp() == 0U);
+    CHECK(xp_gem_active_count() == 1U);
+
+    /* Player touches single gem: returns 1 drop unit, grants 1 XP */
+    collected = xp_gem_update(100U, 100U);
+    CHECK(collected == 1U);
+    if (collected != 0U) {
+        player_add_xp(collected);
+    }
+    CHECK(player_xp() == 1U);
+    CHECK(xp_gem_active_count() == 0U);
+
+    /* Testing collection of heavily condensed gem */
+    xp_gem_init();
+    for (index = 0U; index < MAX_ACTIVE_XP_GEMS; ++index) {
+        xp_gem_spawn((uint8_t)(10U + index * 10U), 50U);
+    }
+    /* Condense 4 more drops into gem 0 */
+    xp_gem_spawn(10U, 50U);
+    xp_gem_spawn(10U, 50U);
+    xp_gem_spawn(10U, 50U);
+    xp_gem_spawn(10U, 50U);
+    CHECK(xp_gem_drop_units(0U) == 5U);
+
+    /* Collecting condensed gem returns 5 drop units */
+    collected = xp_gem_update(10U, 50U);
+    CHECK(collected == 5U);
+    if (collected != 0U) {
+        player_add_xp(collected);
+    }
+    /* Total XP should now be 1 + 5 = 6 */
+    CHECK(player_xp() == 6U);
+    CHECK(player_level_up_pending() == 1U); /* Level 1 -> 2 requires 5 XP */
+}
+
+static void test_level_up_menu(void)
+{
+    level_up_init();
+    CHECK(level_up_cursor() == 0U);
+    CHECK(level_up_is_confirmed() == 0U);
+
+    /* Move down: 0 -> 1 -> 2 -> 0 */
+    level_up_update(BUTTON_DOWN);
+    CHECK(level_up_cursor() == 1U);
+    CHECK(level_up_is_confirmed() == 0U);
+
+    level_up_update(BUTTON_DOWN);
+    CHECK(level_up_cursor() == 2U);
+    CHECK(level_up_is_confirmed() == 0U);
+
+    level_up_update(BUTTON_DOWN);
+    CHECK(level_up_cursor() == 0U);
+    CHECK(level_up_is_confirmed() == 0U);
+
+    /* Move up: 0 -> 2 -> 1 -> 0 */
+    level_up_update(BUTTON_UP);
+    CHECK(level_up_cursor() == 2U);
+    CHECK(level_up_is_confirmed() == 0U);
+
+    level_up_update(BUTTON_UP);
+    CHECK(level_up_cursor() == 1U);
+    CHECK(level_up_is_confirmed() == 0U);
+
+    level_up_update(BUTTON_UP);
+    CHECK(level_up_cursor() == 0U);
+    CHECK(level_up_is_confirmed() == 0U);
+
+    /* Test no button does not move cursor or confirm */
+    level_up_update(0U);
+    CHECK(level_up_cursor() == 0U);
+    CHECK(level_up_is_confirmed() == 0U);
+
+    /* Confirm with BUTTON_A */
+    level_up_update(BUTTON_A);
+    CHECK(level_up_cursor() == 0U);
+    CHECK(level_up_is_confirmed() == 1U);
+
+    /* Re-init and test confirm with BUTTON_START */
+    level_up_init();
+    CHECK(level_up_cursor() == 0U);
+    CHECK(level_up_is_confirmed() == 0U);
+    level_up_update(BUTTON_START);
+    CHECK(level_up_is_confirmed() == 1U);
+}
+
+static void test_hud_buffering(void)
+{
+    uint8_t i;
+
+    player_init();
+    hud_init();
+    CHECK(hud_dirty_flags() == 0U);
+    CHECK(hud_vram_length() == 0U);
+    CHECK(vram_buffer_len == 0U);
+
+    /* No change -> hud_update() does nothing */
+    hud_update();
+    CHECK(hud_dirty_flags() == 0U);
+    CHECK(vram_buffer_len == 0U);
+
+    /* Damage player -> HP dirty */
+    CHECK(player_take_contact_damage() == 1U);
+    CHECK(player_hp() == 4U);
+    hud_notify_hp_changed();
+    hud_update();
+    CHECK(vram_buffer_len == 6U);
+    CHECK(vram_buffer_addr_hi == 0x20U);
+    CHECK(vram_buffer_addr_lo == 0x05U);
+    /* Initial max hp is 5, hp is 4: (4 * 6) / 5 = 4 full tiles, 2 empty */
+    for (i = 0U; i < 4U; ++i) {
+        CHECK(vram_buffer_data[i] == HUD_TILE_BAR_FULL);
+    }
+    for (i = 4U; i < 6U; ++i) {
+        CHECK(vram_buffer_data[i] == HUD_TILE_BAR_EMPTY);
+    }
+
+    /* Simulate NMI transfer completion */
+    vram_buffer_len = 0U;
+
+    /* Grant XP -> XP dirty */
+    player_add_xp(3U); /* XP = 3, next_level_xp = 5 */
+    hud_notify_xp_changed();
+    hud_update();
+    CHECK(vram_buffer_len == 10U);
+    CHECK(vram_buffer_addr_hi == 0x20U);
+    CHECK(vram_buffer_addr_lo == 0x12U);
+    /* (3 * 10) / 5 = 6 full tiles, 4 empty */
+    for (i = 0U; i < 6U; ++i) {
+        CHECK(vram_buffer_data[i] == HUD_TILE_BAR_FULL);
+    }
+    for (i = 6U; i < 10U; ++i) {
+        CHECK(vram_buffer_data[i] == HUD_TILE_BAR_EMPTY);
+    }
+
+    /* Simulate NMI transfer completion */
+    vram_buffer_len = 0U;
+
+    /* Advance to level 2 */
+    player_add_xp(2U);
+    player_apply_level_up(1U); /* Level = 2, max_hp = 6, hp = 5, xp = 0, next_level_xp = 12 */
+    hud_notify_hp_changed();
+    hud_notify_xp_changed();
+    hud_notify_level_changed();
+    hud_update();
+    /* HP dirty is queued first */
+    CHECK(vram_buffer_len == 6U);
+    CHECK(vram_buffer_addr_hi == 0x20U);
+    CHECK(vram_buffer_addr_lo == 0x05U);
+
+    /* Simulate NMI transfer completion */
+    vram_buffer_len = 0U;
+    hud_update();
+    /* XP dirty is queued second */
+    CHECK(vram_buffer_len == 10U);
+    CHECK(vram_buffer_addr_hi == 0x20U);
+    CHECK(vram_buffer_addr_lo == 0x12U);
+
+    /* Simulate NMI transfer completion */
+    vram_buffer_len = 0U;
+    hud_update();
+    /* Level dirty is queued third */
+    CHECK(vram_buffer_len == 2U);
+    CHECK(vram_buffer_addr_hi == 0x20U);
+    CHECK(vram_buffer_addr_lo == 0x1EU);
+    CHECK(vram_buffer_data[0] == (uint8_t)'0');
+    CHECK(vram_buffer_data[1] == (uint8_t)'2');
+
+    /* Simulate NMI transfer completion */
+    vram_buffer_len = 0U;
+    hud_update();
+    /* All dirty flags resolved */
+    CHECK(hud_dirty_flags() == 0U);
+    CHECK(vram_buffer_len == 0U);
+}
+
+static void test_gameplay_level_up_flow(void)
+{
+    player_init();
+    game_flow_init();
+    hud_init();
+
+    /* Transition game flow to playing */
+    game_flow_update(BUTTON_START);
+    game_flow_update(BUTTON_START);
+    CHECK(game_flow_state() == GAME_STATE_PLAYING);
+    CHECK(player_level() == 1U);
+    CHECK(player_level_up_pending() == 0U);
+
+    /* Test simulated level up flow: player_add_xp(5U) sets player_level_up_pending() == 1U */
+    player_add_xp(5U);
+    CHECK(player_level_up_pending() == 1U);
+
+    /* Test game_flow_enter_level_up() transitions state to GAME_STATE_LEVEL_UP */
+    game_flow_enter_level_up();
+    CHECK(game_flow_state() == GAME_STATE_LEVEL_UP);
+
+    /* Test level_up_init(), level_up_update(BUTTON_A) */
+    level_up_init();
+    CHECK(level_up_cursor() == 0U);
+    CHECK(level_up_is_confirmed() == 0U);
+    level_up_update(BUTTON_A);
+    CHECK(level_up_is_confirmed() == 1U);
+
+    /* Test player_apply_level_up(level_up_cursor()) updates level to 2, clears pending */
+    player_apply_level_up(level_up_cursor());
+    CHECK(player_level() == 2U);
+    CHECK(player_level_up_pending() == 0U);
+
+    /* Test game_flow_exit_level_up() transitions state back to GAME_STATE_PLAYING */
+    game_flow_exit_level_up();
+    CHECK(game_flow_state() == GAME_STATE_PLAYING);
+}
+
 int main(void)
 {
     test_rng();
@@ -771,6 +1105,7 @@ int main(void)
     test_player_direction_and_animation_selection();
     test_player_diagonal_and_bounds();
     test_player_contact_damage_and_cooldown();
+    test_player_xp_and_level_up();
     test_animation_duration_and_loop();
     test_metasprite_rendering_and_idle_flip();
     test_automatic_sword_attack_and_rendering();
@@ -778,9 +1113,13 @@ int main(void)
     test_enemy_spawn_movement_collision_and_saturation();
     test_enemy_player_contact_bounds();
     test_xp_gem_collection_condensation_and_rendering();
+    test_xp_gem_collection_and_player_xp_integration();
     test_enemy_separation();
     test_enemy_sword_collision_staggering();
     test_enemy_separation_bounds();
     test_enemy_facing_and_horizontal_flip();
+    test_level_up_menu();
+    test_hud_buffering();
+    test_gameplay_level_up_flow();
     return failures;
 }

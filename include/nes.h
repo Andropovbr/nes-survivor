@@ -25,6 +25,10 @@
 
 extern uint8_t oam_shadow[256];
 extern volatile uint8_t nes_frame_counter;
+extern volatile uint8_t vram_buffer_len;
+extern uint8_t vram_buffer_addr_hi;
+extern uint8_t vram_buffer_addr_lo;
+extern uint8_t vram_buffer_data[32];
 
 /*
  * Assembly ABI: nes_wait_frame

@@ -27,4 +27,14 @@ uint8_t player_current_animation(void);
 uint8_t player_current_frame(void);
 uint8_t player_frame_timer(void);
 
+void player_add_xp(uint16_t amount);
+uint16_t player_xp(void);
+uint16_t player_next_level_xp(void);
+uint8_t player_level(void);
+uint8_t player_level_up_pending(void);
+void player_apply_level_up(uint8_t choice_index);
+uint8_t player_weapon(uint8_t slot);
+uint8_t player_bonus(uint8_t slot);
+uint8_t player_max_hp(void);
+
 #endif
