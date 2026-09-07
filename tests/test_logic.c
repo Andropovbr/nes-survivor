@@ -579,7 +579,7 @@ static void test_xp_gem_collection_condensation_and_rendering(void)
     CHECK(oam_shadow[2] == UINT8_C(0x03));
     CHECK(oam_shadow[3] == 16U);
 
-    xp_gem_update(16U, 40U);
+    CHECK(xp_gem_update(16U, 40U) == 2U);
     CHECK(xp_gem_active_count() == (uint8_t)(MAX_ACTIVE_XP_GEMS - 1U));
     CHECK(xp_gem_is_active(0U) == 0U);
     CHECK(xp_gem_drop_units(0U) == 0U);
@@ -853,6 +853,59 @@ static void test_player_xp_and_level_up(void)
     CHECK(player_level_up_pending() == 1U);
 }
 
+static void test_xp_gem_collection_and_player_xp_integration(void)
+{
+    uint8_t index;
+    uint16_t collected;
+
+    player_init();
+    xp_gem_init();
+    CHECK(player_xp() == 0U);
+
+    xp_gem_spawn(100U, 100U);
+    CHECK(xp_gem_active_count() == 1U);
+
+    /* Player not touching gem: returns 0, player XP unchanged */
+    collected = xp_gem_update(0U, 0U);
+    CHECK(collected == 0U);
+    if (collected != 0U) {
+        player_add_xp(collected);
+    }
+    CHECK(player_xp() == 0U);
+    CHECK(xp_gem_active_count() == 1U);
+
+    /* Player touches single gem: returns 1 drop unit, grants 1 XP */
+    collected = xp_gem_update(100U, 100U);
+    CHECK(collected == 1U);
+    if (collected != 0U) {
+        player_add_xp(collected);
+    }
+    CHECK(player_xp() == 1U);
+    CHECK(xp_gem_active_count() == 0U);
+
+    /* Testing collection of heavily condensed gem */
+    xp_gem_init();
+    for (index = 0U; index < MAX_ACTIVE_XP_GEMS; ++index) {
+        xp_gem_spawn((uint8_t)(10U + index * 10U), 50U);
+    }
+    /* Condense 4 more drops into gem 0 */
+    xp_gem_spawn(10U, 50U);
+    xp_gem_spawn(10U, 50U);
+    xp_gem_spawn(10U, 50U);
+    xp_gem_spawn(10U, 50U);
+    CHECK(xp_gem_drop_units(0U) == 5U);
+
+    /* Collecting condensed gem returns 5 drop units */
+    collected = xp_gem_update(10U, 50U);
+    CHECK(collected == 5U);
+    if (collected != 0U) {
+        player_add_xp(collected);
+    }
+    /* Total XP should now be 1 + 5 = 6 */
+    CHECK(player_xp() == 6U);
+    CHECK(player_level_up_pending() == 1U); /* Level 1 -> 2 requires 5 XP */
+}
+
 int main(void)
 {
     test_rng();
@@ -869,6 +922,7 @@ int main(void)
     test_enemy_spawn_movement_collision_and_saturation();
     test_enemy_player_contact_bounds();
     test_xp_gem_collection_condensation_and_rendering();
+    test_xp_gem_collection_and_player_xp_integration();
     test_enemy_separation();
     test_enemy_sword_collision_staggering();
     test_enemy_separation_bounds();

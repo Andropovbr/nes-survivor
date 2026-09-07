@@ -67,6 +67,7 @@ void game_update(void)
     uint8_t facing_left;
     uint8_t player_vulnerable;
     uint8_t sword_active;
+    uint16_t collected_xp;
 
     if (game_flow_state() != GAME_STATE_PLAYING) {
         initial_screens_update();
@@ -98,7 +99,10 @@ void game_update(void)
         enemy_apply_sword_hitbox(&sword_hitbox);
     }
     collision_phase ^= 1U;
-    xp_gem_update(player_x(), player_y());
+    collected_xp = xp_gem_update(player_x(), player_y());
+    if (collected_xp != 0U) {
+        player_add_xp(collected_xp);
+    }
     oam_renderer_begin(&oam_renderer);
     player_render(&oam_renderer);
     (void)weapon_sword_render(

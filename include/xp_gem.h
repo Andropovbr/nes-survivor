@@ -7,7 +7,7 @@
 
 void xp_gem_init(void);
 void xp_gem_spawn(uint8_t x, uint8_t y);
-void xp_gem_update(uint8_t player_x, uint8_t player_y);
+uint16_t xp_gem_update(uint8_t player_x, uint8_t player_y);
 void xp_gem_render(OamRenderer *renderer);
 
 #ifdef UNIT_TEST
